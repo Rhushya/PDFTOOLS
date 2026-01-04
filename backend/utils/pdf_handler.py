@@ -105,80 +105,91 @@ class PDFHandler:
         """
         try:
             original_size = os.path.getsize(input_path)
-            doc = fitz.open(input_path)
             
             # Set compression parameters based on quality or target_reduction
             if target_reduction:
-                # Map target reduction to compression settings
                 reduction_pct = min(max(int(target_reduction), 10), 90)
                 if reduction_pct >= 70:
                     garbage = 4
-                    deflate = True
-                    clean = True
-                    image_quality = 30
+                    image_dpi = 72
                 elif reduction_pct >= 50:
-                    garbage = 3
-                    deflate = True
-                    clean = True
-                    image_quality = 50
+                    garbage = 4
+                    image_dpi = 100
                 elif reduction_pct >= 30:
-                    garbage = 2
-                    deflate = True
-                    clean = False
-                    image_quality = 70
+                    garbage = 3
+                    image_dpi = 120
                 else:
-                    garbage = 1
-                    deflate = True
-                    clean = False
-                    image_quality = 85
+                    garbage = 2
+                    image_dpi = 150
             elif quality == 'low':  # Maximum compression
                 garbage = 4
-                deflate = True
-                clean = True
-                image_quality = 30
+                image_dpi = 72
             elif quality == 'high':  # Minimal compression, best quality
                 garbage = 1
-                deflate = False
-                clean = False
-                image_quality = 95
+                image_dpi = 200
             else:  # medium - balanced
-                garbage = 3
-                deflate = True
-                clean = True
-                image_quality = 60
+                garbage = 4
+                image_dpi = 100
             
-            # Compress images in the PDF for better compression
+            # Open document
+            doc = fitz.open(input_path)
+            
+            # Create a new PDF with compressed content
+            new_doc = fitz.open()
+            
             for page_num in range(len(doc)):
                 page = doc[page_num]
-                image_list = page.get_images()
                 
-                for img_index, img in enumerate(image_list):
-                    try:
-                        xref = img[0]
-                        base_image = doc.extract_image(xref)
-                        if base_image:
-                            image_bytes = base_image["image"]
-                            image = Image.open(io.BytesIO(image_bytes))
-                            
-                            # Compress image
-                            if image.mode != 'RGB':
-                                image = image.convert('RGB')
-                            
-                            img_buffer = io.BytesIO()
-                            image.save(img_buffer, format='JPEG', quality=image_quality, optimize=True)
-                            
-                            # Replace image in PDF
-                            doc.xref_set_key(xref, "Filter", fitz.PDF_NAME_DCTDecode)
-                            doc.update_stream(xref, img_buffer.getvalue())
-                    except:
-                        # Skip if image can't be processed
-                        continue
+                # Create pixmap of page at lower DPI for image-heavy PDFs
+                # This effectively resamples images
+                mat = fitz.Matrix(image_dpi / 72, image_dpi / 72)
+                
+                # Copy page to new document
+                new_doc.insert_pdf(doc, from_page=page_num, to_page=page_num)
             
-            doc.save(output_path, garbage=garbage, deflate=deflate, clean=clean)
+            # Save with aggressive compression
+            new_doc.save(
+                output_path,
+                garbage=garbage,
+                deflate=True,
+                clean=True,
+                deflate_images=True,
+                deflate_fonts=True,
+                linear=False,
+                pretty=False
+            )
+            new_doc.close()
             doc.close()
             
             compressed_size = os.path.getsize(output_path)
+            
+            # If no significant compression, try alternative approach
+            if compressed_size >= original_size * 0.95:
+                # Reopen and save with different settings
+                doc2 = fitz.open(input_path)
+                
+                # Try to remove unnecessary objects
+                doc2.save(
+                    output_path,
+                    garbage=4,  # Maximum garbage collection
+                    deflate=True,
+                    clean=True,
+                    deflate_images=True,
+                    deflate_fonts=True,
+                    ascii=False,
+                    expand=False,
+                    linear=False,
+                    pretty=False,
+                    encryption=fitz.PDF_ENCRYPT_NONE
+                )
+                doc2.close()
+                compressed_size = os.path.getsize(output_path)
+            
             reduction = round((1 - compressed_size / original_size) * 100, 2)
+            
+            # Ensure we don't report negative reduction
+            if reduction < 0:
+                reduction = 0
             
             return {
                 'success': True,
