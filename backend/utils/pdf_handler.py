@@ -93,25 +93,86 @@ class PDFHandler:
         except Exception as e:
             return {'success': False, 'error': str(e)}
     
-    def compress_pdf(self, input_path, output_path, quality='medium'):
-        """Compress PDF file"""
+    def compress_pdf(self, input_path, output_path, quality='medium', target_reduction=None):
+        """
+        Compress PDF file with flexible compression options
+        
+        Args:
+            input_path: Path to input PDF
+            output_path: Path for output PDF
+            quality: 'low' (max compression), 'medium', 'high' (minimal compression)
+            target_reduction: Optional target reduction percentage (10-90)
+        """
         try:
             original_size = os.path.getsize(input_path)
             doc = fitz.open(input_path)
             
-            # Set compression parameters based on quality
-            if quality == 'low':
+            # Set compression parameters based on quality or target_reduction
+            if target_reduction:
+                # Map target reduction to compression settings
+                reduction_pct = min(max(int(target_reduction), 10), 90)
+                if reduction_pct >= 70:
+                    garbage = 4
+                    deflate = True
+                    clean = True
+                    image_quality = 30
+                elif reduction_pct >= 50:
+                    garbage = 3
+                    deflate = True
+                    clean = True
+                    image_quality = 50
+                elif reduction_pct >= 30:
+                    garbage = 2
+                    deflate = True
+                    clean = False
+                    image_quality = 70
+                else:
+                    garbage = 1
+                    deflate = True
+                    clean = False
+                    image_quality = 85
+            elif quality == 'low':  # Maximum compression
                 garbage = 4
                 deflate = True
                 clean = True
-            elif quality == 'high':
+                image_quality = 30
+            elif quality == 'high':  # Minimal compression, best quality
                 garbage = 1
                 deflate = False
                 clean = False
-            else:  # medium
+                image_quality = 95
+            else:  # medium - balanced
                 garbage = 3
                 deflate = True
                 clean = True
+                image_quality = 60
+            
+            # Compress images in the PDF for better compression
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                image_list = page.get_images()
+                
+                for img_index, img in enumerate(image_list):
+                    try:
+                        xref = img[0]
+                        base_image = doc.extract_image(xref)
+                        if base_image:
+                            image_bytes = base_image["image"]
+                            image = Image.open(io.BytesIO(image_bytes))
+                            
+                            # Compress image
+                            if image.mode != 'RGB':
+                                image = image.convert('RGB')
+                            
+                            img_buffer = io.BytesIO()
+                            image.save(img_buffer, format='JPEG', quality=image_quality, optimize=True)
+                            
+                            # Replace image in PDF
+                            doc.xref_set_key(xref, "Filter", fitz.PDF_NAME_DCTDecode)
+                            doc.update_stream(xref, img_buffer.getvalue())
+                    except:
+                        # Skip if image can't be processed
+                        continue
             
             doc.save(output_path, garbage=garbage, deflate=deflate, clean=clean)
             doc.close()
@@ -210,27 +271,62 @@ class PDFHandler:
         except Exception as e:
             return {'success': False, 'error': str(e)}
     
-    def extract_text(self, input_path, output_path):
-        """Extract text from PDF and save to file"""
+    def extract_text(self, input_path, output_path, output_format='txt'):
+        """
+        Extract text from PDF and save to file
+        
+        Args:
+            input_path: Path to input PDF
+            output_path: Path for output file
+            output_format: 'txt' or 'docx'
+        """
         try:
             doc = fitz.open(input_path)
             text = ""
             
-            for page in doc:
-                text += page.get_text()
+            for page_num, page in enumerate(doc):
+                page_text = page.get_text()
+                text += f"--- Page {page_num + 1} ---\n\n"
+                text += page_text
                 text += "\n\n"
             
             doc.close()
             text = text.strip()
             
-            # Save to file
-            with open(output_path, 'w', encoding='utf-8') as f:
-                f.write(text)
+            if not text:
+                return {'success': False, 'error': 'No text found in PDF'}
+            
+            if output_format == 'docx':
+                try:
+                    from docx import Document
+                    document = Document()
+                    
+                    # Split text into paragraphs
+                    for para in text.split('\n\n'):
+                        if para.strip():
+                            document.add_paragraph(para.strip())
+                    
+                    document.save(output_path)
+                except ImportError:
+                    # Fallback to txt if docx not available
+                    output_path = output_path.replace('.docx', '.txt')
+                    with open(output_path, 'w', encoding='utf-8') as f:
+                        f.write(text)
+            else:
+                # Save as txt
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(text)
             
             # Return preview
             preview = text[:500] + "..." if len(text) > 500 else text
             
-            return {'success': True, 'output_path': output_path, 'text_preview': preview}
+            return {
+                'success': True, 
+                'output_path': output_path, 
+                'text_preview': preview,
+                'char_count': len(text),
+                'word_count': len(text.split())
+            }
         except Exception as e:
             return {'success': False, 'error': str(e)}
     
@@ -353,6 +449,184 @@ class PDFHandler:
                 writer.write(f)
             
             return {'success': True, 'output_path': output_path}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+    
+    def extract_tables(self, input_path, output_dir, output_format='txt'):
+        """
+        Extract tables from PDF
+        
+        Args:
+            input_path: Path to input PDF
+            output_dir: Directory for output files
+            output_format: 'txt' or 'markdown'
+        """
+        try:
+            doc = fitz.open(input_path)
+            tables_found = []
+            all_tables_text = ""
+            
+            for page_num, page in enumerate(doc):
+                # Try to find tables using structured text extraction
+                tabs = page.find_tables()
+                
+                if tabs.tables:
+                    for table_idx, table in enumerate(tabs.tables):
+                        table_data = table.extract()
+                        
+                        if table_data:
+                            table_name = f"page{page_num + 1}_table{table_idx + 1}"
+                            
+                            if output_format == 'markdown':
+                                # Convert to markdown format
+                                md_table = self._table_to_markdown(table_data)
+                                all_tables_text += f"## Table from Page {page_num + 1}, Table {table_idx + 1}\n\n"
+                                all_tables_text += md_table + "\n\n"
+                            else:
+                                # Plain text format
+                                txt_table = self._table_to_text(table_data)
+                                all_tables_text += f"=== Table from Page {page_num + 1}, Table {table_idx + 1} ===\n\n"
+                                all_tables_text += txt_table + "\n\n"
+                            
+                            tables_found.append(table_name)
+            
+            doc.close()
+            
+            if not tables_found:
+                return {'success': False, 'error': 'No tables found in PDF'}
+            
+            # Save output
+            ext = 'md' if output_format == 'markdown' else 'txt'
+            output_path = os.path.join(output_dir, f"tables.{ext}")
+            
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(all_tables_text)
+            
+            return {
+                'success': True,
+                'output_path': output_path,
+                'tables_count': len(tables_found),
+                'tables': tables_found
+            }
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+    
+    def _table_to_markdown(self, table_data):
+        """Convert table data to markdown format"""
+        if not table_data or not table_data[0]:
+            return ""
+        
+        md_lines = []
+        
+        # Header row
+        header = [str(cell) if cell else "" for cell in table_data[0]]
+        md_lines.append("| " + " | ".join(header) + " |")
+        md_lines.append("| " + " | ".join(["---"] * len(header)) + " |")
+        
+        # Data rows
+        for row in table_data[1:]:
+            cells = [str(cell) if cell else "" for cell in row]
+            # Pad row if needed
+            while len(cells) < len(header):
+                cells.append("")
+            md_lines.append("| " + " | ".join(cells[:len(header)]) + " |")
+        
+        return "\n".join(md_lines)
+    
+    def _table_to_text(self, table_data):
+        """Convert table data to plain text format"""
+        if not table_data:
+            return ""
+        
+        txt_lines = []
+        
+        # Calculate column widths
+        col_widths = []
+        for row in table_data:
+            for i, cell in enumerate(row):
+                cell_str = str(cell) if cell else ""
+                while len(col_widths) <= i:
+                    col_widths.append(0)
+                col_widths[i] = max(col_widths[i], len(cell_str))
+        
+        # Format rows
+        for row in table_data:
+            cells = []
+            for i, cell in enumerate(row):
+                cell_str = str(cell) if cell else ""
+                if i < len(col_widths):
+                    cells.append(cell_str.ljust(col_widths[i]))
+                else:
+                    cells.append(cell_str)
+            txt_lines.append(" | ".join(cells))
+        
+        return "\n".join(txt_lines)
+    
+    def pdf_to_images(self, input_path, output_dir, format='jpeg', dpi=150, pages=None):
+        """
+        Convert PDF pages to images
+        
+        Args:
+            input_path: Path to input PDF
+            output_dir: Directory for output images
+            format: 'jpeg' or 'png'
+            dpi: Resolution (72-300)
+            pages: List of page numbers or None for all pages
+        """
+        try:
+            doc = fitz.open(input_path)
+            total_pages = len(doc)
+            
+            # Parse pages if string
+            if isinstance(pages, str) and pages:
+                if pages.lower() == 'all':
+                    pages = None
+                elif '-' in pages:
+                    start, end = pages.split('-')
+                    pages = list(range(int(start), int(end) + 1))
+                elif ',' in pages:
+                    pages = [int(p.strip()) for p in pages.split(',')]
+                else:
+                    pages = [int(pages)]
+            
+            # Validate pages
+            if pages:
+                pages = [p for p in pages if 1 <= p <= total_pages]
+                if not pages:
+                    return {'success': False, 'error': f'Invalid page numbers. PDF has {total_pages} pages.'}
+            
+            output_paths = []
+            matrix = fitz.Matrix(dpi / 72, dpi / 72)
+            
+            for i, page in enumerate(doc):
+                page_num = i + 1
+                if pages is None or page_num in pages:
+                    pix = page.get_pixmap(matrix=matrix)
+                    
+                    if format.lower() == 'jpeg':
+                        output_path = os.path.join(output_dir, f"page_{page_num}.jpg")
+                        # Convert to PIL for JPEG with quality control
+                        img = Image.open(io.BytesIO(pix.tobytes("png")))
+                        if img.mode != 'RGB':
+                            img = img.convert('RGB')
+                        img.save(output_path, 'JPEG', quality=95)
+                    else:
+                        output_path = os.path.join(output_dir, f"page_{page_num}.png")
+                        pix.save(output_path)
+                    
+                    output_paths.append(output_path)
+            
+            doc.close()
+            
+            if not output_paths:
+                return {'success': False, 'error': 'No pages converted'}
+            
+            return {
+                'success': True,
+                'images': output_paths,
+                'page_count': len(output_paths),
+                'total_pages': total_pages
+            }
         except Exception as e:
             return {'success': False, 'error': str(e)}
 

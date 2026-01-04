@@ -57,13 +57,14 @@ const operations: Operation[] = [
   { id: 'merge', name: 'Merge PDFs', icon: <Merge size={28} />, endpoint: '/pdf/merge', description: 'Combine multiple PDF files into a single document', category: 'organize', color: '#FF6B4A' },
   { id: 'split', name: 'Split PDF', icon: <Scissors size={28} />, endpoint: '/pdf/split', description: 'Extract specific pages or split into multiple files', category: 'organize', color: '#FF6B4A' },
   { id: 'rotate', name: 'Rotate Pages', icon: <RotateCw size={28} />, endpoint: '/pdf/rotate', description: 'Rotate PDF pages to any angle you need', category: 'organize', color: '#FF6B4A' },
-  { id: 'compress', name: 'Compress PDF', icon: <Minimize2 size={28} />, endpoint: '/pdf/compress', description: 'Reduce file size while maintaining quality', category: 'optimize', color: '#4ECDC4' },
+  { id: 'compress', name: 'Compress PDF', icon: <Minimize2 size={28} />, endpoint: '/pdf/compress', description: 'Reduce file size with adjustable compression level', category: 'optimize', color: '#4ECDC4' },
   { id: 'watermark', name: 'Add Watermark', icon: <Droplets size={28} />, endpoint: '/pdf/watermark', description: 'Add custom text watermarks to your PDFs', category: 'enhance', color: '#FFE66D' },
   { id: 'page-numbers', name: 'Page Numbers', icon: <Hash size={28} />, endpoint: '/pdf/page-numbers', description: 'Automatically add page numbers to documents', category: 'enhance', color: '#FFE66D' },
-  { id: 'extract-text', name: 'Extract Text', icon: <FileOutput size={28} />, endpoint: '/pdf/extract-text', description: 'Pull all text content from PDF files', category: 'extract', color: '#95E1D3' },
-  { id: 'extract-images', name: 'Extract Images', icon: <Image size={28} />, endpoint: '/pdf/extract-images', description: 'Extract all embedded images from PDFs', category: 'extract', color: '#95E1D3' },
+  { id: 'extract-text', name: 'Extract Text', icon: <FileOutput size={28} />, endpoint: '/pdf/extract-text', description: 'Extract text as .txt or Word document', category: 'extract', color: '#95E1D3' },
+  { id: 'extract-images', name: 'Extract Images', icon: <Image size={28} />, endpoint: '/pdf/extract-images', description: 'Extract all embedded images as ZIP', category: 'extract', color: '#95E1D3' },
+  { id: 'extract-tables', name: 'Extract Tables', icon: <FileText size={28} />, endpoint: '/pdf/extract-tables', description: 'Extract tables as text or markdown', category: 'extract', color: '#95E1D3' },
   { id: 'image-to-pdf', name: 'Image to PDF', icon: <FileImage size={28} />, endpoint: '/convert/image-to-pdf', description: 'Convert images into PDF documents', category: 'convert', color: '#DDA0DD' },
-  { id: 'pdf-to-jpg', name: 'PDF to JPG', icon: <FileType size={28} />, endpoint: '/convert/pdf-to-jpg', description: 'Convert PDF pages to high-quality images', category: 'convert', color: '#DDA0DD' },
+  { id: 'pdf-to-jpg', name: 'PDF to JPG', icon: <FileType size={28} />, endpoint: '/convert/pdf-to-jpg', description: 'Convert PDF pages to JPG images', category: 'convert', color: '#DDA0DD' },
   { id: 'protect', name: 'Protect PDF', icon: <Lock size={28} />, endpoint: '/security/protect', description: 'Secure your PDFs with password protection', category: 'security', color: '#F38181' },
   { id: 'unlock', name: 'Unlock PDF', icon: <Unlock size={28} />, endpoint: '/security/unlock', description: 'Remove password protection from PDFs', category: 'security', color: '#F38181' },
 ];
@@ -101,6 +102,8 @@ function App() {
   const [scrolled, setScrolled] = useState(false);
   
   const heroRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const { scrollYProgress } = useScroll();
   const heroOpacity = useTransform(scrollYProgress, [0, 0.3], [1, 0]);
   const heroScale = useTransform(scrollYProgress, [0, 0.3], [1, 0.95]);
@@ -152,6 +155,16 @@ function App() {
   };
 
   const closeOperationModal = () => {
+    // Cancel any ongoing request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    // Clear progress interval
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
     setShowOperationModal(false);
     setFiles([]);
     setSelectedOperation(null);
@@ -160,6 +173,8 @@ function App() {
     setDownloadUrl(null);
     setCustomFileName('');
     setOriginalFileName('');
+    setIsProcessing(false);
+    setProgress(0);
   };
 
   const handleOperationClick = (op: Operation) => {
@@ -179,6 +194,9 @@ function App() {
       return;
     }
 
+    // Create new AbortController for this request
+    abortControllerRef.current = new AbortController();
+    
     setIsProcessing(true);
     setProgress(0);
 
@@ -195,15 +213,19 @@ function App() {
     });
 
     try {
-      const progressInterval = setInterval(() => {
+      progressIntervalRef.current = setInterval(() => {
         setProgress(prev => Math.min(prev + 10, 90));
       }, 200);
 
       const response = await axios.post(`${API_URL}${selectedOperation.endpoint}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        signal: abortControllerRef.current?.signal,
       });
 
-      clearInterval(progressInterval);
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
       setProgress(100);
 
       if (response.data.success) {
@@ -227,9 +249,19 @@ function App() {
         throw new Error(response.data.message);
       }
     } catch (error: unknown) {
+      // Check if it was cancelled
+      if (axios.isCancel(error)) {
+        console.log('Request cancelled');
+        return;
+      }
       const err = error as { response?: { data?: { message?: string } }; message?: string };
       toast.error(err.response?.data?.message || err.message || 'An error occurred');
     } finally {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+      abortControllerRef.current = null;
       setIsProcessing(false);
       setTimeout(() => setProgress(0), 1000);
     }
@@ -706,7 +738,9 @@ function App() {
                     <AnimatePresence>
                       {(selectedOperation.id === 'rotate' || selectedOperation.id === 'split' || 
                         selectedOperation.id === 'watermark' || selectedOperation.id === 'protect' ||
-                        selectedOperation.id === 'unlock') && (
+                        selectedOperation.id === 'unlock' || selectedOperation.id === 'compress' ||
+                        selectedOperation.id === 'extract-text' || selectedOperation.id === 'extract-tables' ||
+                        selectedOperation.id === 'pdf-to-jpg') && (
                         <motion.div 
                           className="params-section modal-params"
                           initial={{ opacity: 0, height: 0 }}
@@ -739,6 +773,34 @@ function App() {
                               />
                             </div>
                           )}
+                          {selectedOperation.id === 'compress' && (
+                            <>
+                              <div className="param-group">
+                                <label>Compression Level</label>
+                                <select 
+                                  value={extraParams.quality || 'medium'}
+                                  onChange={(e) => setExtraParams({...extraParams, quality: e.target.value, target_reduction: ''})}
+                                  className="param-select"
+                                >
+                                  <option value="low">Maximum Compression (Smaller File)</option>
+                                  <option value="medium">Balanced (Recommended)</option>
+                                  <option value="high">Minimal Compression (Best Quality)</option>
+                                </select>
+                              </div>
+                              <div className="param-group">
+                                <label>Or Target Reduction % (10-90)</label>
+                                <input 
+                                  type="number"
+                                  min="10"
+                                  max="90"
+                                  value={extraParams.target_reduction || ''}
+                                  onChange={(e) => setExtraParams({...extraParams, target_reduction: e.target.value})}
+                                  placeholder="e.g., 50 for 50% reduction"
+                                  className="param-input"
+                                />
+                              </div>
+                            </>
+                          )}
                           {selectedOperation.id === 'watermark' && (
                             <div className="param-group">
                               <label>Watermark Text</label>
@@ -762,6 +824,58 @@ function App() {
                                 className="param-input"
                               />
                             </div>
+                          )}
+                          {selectedOperation.id === 'extract-text' && (
+                            <div className="param-group">
+                              <label>Output Format</label>
+                              <select 
+                                value={extraParams.format || 'txt'}
+                                onChange={(e) => setExtraParams({...extraParams, format: e.target.value})}
+                                className="param-select"
+                              >
+                                <option value="txt">Plain Text (.txt)</option>
+                                <option value="docx">Word Document (.docx)</option>
+                              </select>
+                            </div>
+                          )}
+                          {selectedOperation.id === 'extract-tables' && (
+                            <div className="param-group">
+                              <label>Output Format</label>
+                              <select 
+                                value={extraParams.format || 'txt'}
+                                onChange={(e) => setExtraParams({...extraParams, format: e.target.value})}
+                                className="param-select"
+                              >
+                                <option value="txt">Plain Text (.txt)</option>
+                                <option value="markdown">Markdown (.md)</option>
+                              </select>
+                            </div>
+                          )}
+                          {selectedOperation.id === 'pdf-to-jpg' && (
+                            <>
+                              <div className="param-group">
+                                <label>Pages to Convert</label>
+                                <input 
+                                  type="text"
+                                  value={extraParams.pages || ''}
+                                  onChange={(e) => setExtraParams({...extraParams, pages: e.target.value})}
+                                  placeholder="Leave empty for all, or 1-3, or 1,3,5"
+                                  className="param-input"
+                                />
+                              </div>
+                              <div className="param-group">
+                                <label>Image Quality (DPI)</label>
+                                <select 
+                                  value={extraParams.dpi || '150'}
+                                  onChange={(e) => setExtraParams({...extraParams, dpi: e.target.value})}
+                                  className="param-select"
+                                >
+                                  <option value="72">Low (72 DPI - Fast)</option>
+                                  <option value="150">Medium (150 DPI - Balanced)</option>
+                                  <option value="300">High (300 DPI - Best Quality)</option>
+                                </select>
+                              </div>
+                            </>
                           )}
                         </motion.div>
                       )}

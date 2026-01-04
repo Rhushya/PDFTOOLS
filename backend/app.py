@@ -331,6 +331,7 @@ def compress_pdf():
         
         file = request.files['file']
         quality = request.form.get('quality', 'medium')  # low, medium, high
+        target_reduction = request.form.get('target_reduction')  # Optional: 10-90%
         
         file_id, filepath, original_name = save_uploaded_file(file)
         if not file_id:
@@ -339,7 +340,7 @@ def compress_pdf():
         output_id = generate_file_id()
         output_path = os.path.join(app.config['OUTPUT_FOLDER'], f"{output_id}_compressed.pdf")
         
-        result = pdf_handler.compress_pdf(filepath, output_path, quality)
+        result = pdf_handler.compress_pdf(filepath, output_path, quality, target_reduction)
         
         if result['success']:
             return success_response('PDF compressed successfully', {
@@ -423,22 +424,26 @@ def extract_text():
             return error_response('No PDF file provided')
         
         file = request.files['file']
+        output_format = request.form.get('format', 'txt')  # txt or docx
         
         file_id, filepath, original_name = save_uploaded_file(file)
         if not file_id:
             return error_response('Invalid file type')
         
         output_id = generate_file_id()
-        output_path = os.path.join(app.config['OUTPUT_FOLDER'], f"{output_id}_text.txt")
+        ext = 'docx' if output_format == 'docx' else 'txt'
+        output_path = os.path.join(app.config['OUTPUT_FOLDER'], f"{output_id}_text.{ext}")
         
-        result = pdf_handler.extract_text(filepath, output_path)
+        result = pdf_handler.extract_text(filepath, output_path, output_format)
         
         if result['success']:
             return success_response('Text extracted successfully', {
                 'file_id': output_id,
-                'filename': f"{output_id}_text.txt",
+                'filename': f"{output_id}_text.{ext}",
                 'text_preview': result.get('text_preview', ''),
-                'download_url': f"/download/{output_id}_text.txt"
+                'char_count': result.get('char_count', 0),
+                'word_count': result.get('word_count', 0),
+                'download_url': f"/download/{output_id}_text.{ext}"
             })
         else:
             return error_response('Failed to extract text', error=result.get('error'))
@@ -472,6 +477,7 @@ def extract_images():
             
             return success_response('Images extracted successfully', {
                 'file_id': output_id,
+                'filename': f"{output_id}_images.zip",
                 'image_count': result.get('image_count', 0),
                 'download_url': f"/download-zip/{output_id}"
             })
@@ -479,6 +485,39 @@ def extract_images():
             return error_response('Failed to extract images', error=result.get('error'))
     except Exception as e:
         return error_response('Error extracting images', error=e, status=500)
+
+@app.route('/api/pdf/extract-tables', methods=['POST'])
+def extract_tables():
+    """Extract tables from PDF"""
+    try:
+        if 'file' not in request.files:
+            return error_response('No PDF file provided')
+        
+        file = request.files['file']
+        output_format = request.form.get('format', 'txt')  # txt or markdown
+        
+        file_id, filepath, original_name = save_uploaded_file(file)
+        if not file_id:
+            return error_response('Invalid file type')
+        
+        output_id = generate_file_id()
+        output_dir = os.path.join(app.config['OUTPUT_FOLDER'], f"{output_id}_tables")
+        os.makedirs(output_dir, exist_ok=True)
+        
+        result = pdf_handler.extract_tables(filepath, output_dir, output_format)
+        
+        if result['success']:
+            ext = 'md' if output_format == 'markdown' else 'txt'
+            return success_response('Tables extracted successfully', {
+                'file_id': output_id,
+                'filename': f"tables.{ext}",
+                'tables_count': result.get('tables_count', 0),
+                'download_url': f"/download/{output_id}_tables/tables.{ext}"
+            })
+        else:
+            return error_response('Failed to extract tables', error=result.get('error'))
+    except Exception as e:
+        return error_response('Error extracting tables', error=e, status=500)
 
 # ============================================================================
 # SECURITY OPERATIONS
@@ -560,6 +599,7 @@ def pdf_to_jpg():
         
         file = request.files['file']
         dpi = int(request.form.get('dpi', 150))
+        pages = request.form.get('pages', '')  # e.g., "1", "1-3", "1,3,5", or empty for all
         
         file_id, filepath, original_name = save_uploaded_file(file)
         if not file_id:
@@ -569,20 +609,39 @@ def pdf_to_jpg():
         output_dir = os.path.join(app.config['OUTPUT_FOLDER'], f"{output_id}_jpg")
         os.makedirs(output_dir, exist_ok=True)
         
-        result = converter.pdf_to_jpg(filepath, output_dir, dpi)
+        # Use the enhanced pdf_to_images method
+        result = pdf_handler.pdf_to_images(filepath, output_dir, format='jpeg', dpi=dpi, pages=pages if pages else None)
         
         if result['success']:
-            # Create zip of images
-            zip_path = os.path.join(app.config['TEMP_FOLDER'], f"{output_id}_jpg.zip")
-            with zipfile.ZipFile(zip_path, 'w') as zipf:
-                for img in result.get('images', []):
-                    zipf.write(img, os.path.basename(img))
+            images = result.get('images', [])
             
-            return success_response('PDF converted to JPG successfully', {
-                'file_id': output_id,
-                'page_count': result.get('page_count', 0),
-                'download_url': f"/download-zip/{output_id}_jpg"
-            })
+            # If only one image, return it directly; otherwise zip
+            if len(images) == 1:
+                single_image = images[0]
+                import shutil
+                final_path = os.path.join(app.config['OUTPUT_FOLDER'], f"{output_id}_page.jpg")
+                shutil.copy(single_image, final_path)
+                return success_response('PDF converted to JPG successfully', {
+                    'file_id': output_id,
+                    'filename': f"{output_id}_page.jpg",
+                    'page_count': 1,
+                    'total_pages': result.get('total_pages', 1),
+                    'download_url': f"/download/{output_id}_page.jpg"
+                })
+            else:
+                # Create zip of images
+                zip_path = os.path.join(app.config['TEMP_FOLDER'], f"{output_id}_jpg.zip")
+                with zipfile.ZipFile(zip_path, 'w') as zipf:
+                    for img in images:
+                        zipf.write(img, os.path.basename(img))
+                
+                return success_response('PDF converted to JPG successfully', {
+                    'file_id': output_id,
+                    'filename': f"{output_id}_jpg.zip",
+                    'page_count': result.get('page_count', 0),
+                    'total_pages': result.get('total_pages', 0),
+                    'download_url': f"/download-zip/{output_id}_jpg"
+                })
         else:
             return error_response('Failed to convert PDF to JPG', error=result.get('error'))
     except Exception as e:
