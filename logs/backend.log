@@ -1,0 +1,23 @@
+
+============================================================
+  PDFMaster Backend Server
+============================================================
+  Session temp directory: C:\Users\rhush\AppData\Local\Temp\pdfmaster_f4_lhmj2
+  All files will be automatically cleaned on shutdown
+============================================================
+
+Traceback (most recent call last):
+  File "E:\COMPUTES\PROJECT\pdf\backend\app.py", line 799, in <module>
+    print(f"\U0001f680 Starting PDFMaster API on http://localhost:{port}")
+  File "C:\Users\rhush\.conda\envs\pdfmaster\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\U0001f680' in position 0: character maps to <undefined>
+Exception ignored in atexit callback: <function cleanup_temp_directory at 0x0000022E21902700>
+Traceback (most recent call last):
+  File "E:\COMPUTES\PROJECT\pdf\backend\app.py", line 64, in cleanup_temp_directory
+    print(f"\n\u26a0\ufe0f Error cleaning up temp directory: {e}")
+  File "C:\Users\rhush\.conda\envs\pdfmaster\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode characters in position 2-3: character maps to <undefined>
