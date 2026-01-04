@@ -34,7 +34,8 @@ import {
 } from 'lucide-react';
 import './App.css';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://pdftools-iqsc.onrender.com/api';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://pdftools-iqsc.onrender.com';
+const API_URL = `${BACKEND_URL}/api`;
 
 interface UploadedFile {
   file: File;
@@ -227,9 +228,11 @@ function App() {
       setProgress(100);
 
       if (response.data.success) {
-        const downloadLink = response.data.data.download_url;
+        const downloadPath = response.data.data.download_url;
         const filename = response.data.data.filename || 'processed_file';
-        setDownloadUrl(downloadLink);
+        // Build absolute URL for cross-origin download
+        const fullDownloadUrl = downloadPath.startsWith('http') ? downloadPath : `${BACKEND_URL}${downloadPath}`;
+        setDownloadUrl(fullDownloadUrl);
         setOriginalFileName(filename);
         // Set default custom name based on operation
         const baseName = filename.replace(/\.[^/.]+$/, ''); // Remove extension

@@ -22,7 +22,13 @@ load_dotenv()
 
 # Initialize Flask app with static folder support
 app = Flask(__name__, static_folder='static', static_url_path='')
-CORS(app)
+
+# Configure CORS for cross-origin requests (Vercel frontend to Render backend)
+CORS(app, 
+     origins=["https://pdftools-eight.vercel.app", "http://localhost:5173", "http://localhost:5175"],
+     supports_credentials=True,
+     expose_headers=["Content-Disposition"],
+     allow_headers=["Content-Type", "Authorization"])
 
 # ============================================================================
 # TEMPORARY CACHE STORAGE SYSTEM
