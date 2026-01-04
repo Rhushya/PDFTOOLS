@@ -9,7 +9,6 @@ import {
   Merge,
   Scissors,
   RotateCw,
-  Minimize2,
   Droplets,
   Hash,
   FileOutput,
@@ -57,7 +56,6 @@ const operations: Operation[] = [
   { id: 'merge', name: 'Merge PDFs', icon: <Merge size={28} />, endpoint: '/pdf/merge', description: 'Combine multiple PDF files into a single document', category: 'organize', color: '#FF6B4A' },
   { id: 'split', name: 'Split PDF', icon: <Scissors size={28} />, endpoint: '/pdf/split', description: 'Extract specific pages or split into multiple files', category: 'organize', color: '#FF6B4A' },
   { id: 'rotate', name: 'Rotate Pages', icon: <RotateCw size={28} />, endpoint: '/pdf/rotate', description: 'Rotate PDF pages to any angle you need', category: 'organize', color: '#FF6B4A' },
-  { id: 'compress', name: 'Compress PDF', icon: <Minimize2 size={28} />, endpoint: '/pdf/compress', description: 'Reduce file size with adjustable compression level', category: 'optimize', color: '#4ECDC4' },
   { id: 'watermark', name: 'Add Watermark', icon: <Droplets size={28} />, endpoint: '/pdf/watermark', description: 'Add custom text watermarks to your PDFs', category: 'enhance', color: '#FFE66D' },
   { id: 'page-numbers', name: 'Page Numbers', icon: <Hash size={28} />, endpoint: '/pdf/page-numbers', description: 'Automatically add page numbers to documents', category: 'enhance', color: '#FFE66D' },
   { id: 'extract-text', name: 'Extract Text', icon: <FileOutput size={28} />, endpoint: '/pdf/extract-text', description: 'Extract text as .txt or Word document', category: 'extract', color: '#95E1D3' },
@@ -65,6 +63,7 @@ const operations: Operation[] = [
   { id: 'extract-tables', name: 'Extract Tables', icon: <FileText size={28} />, endpoint: '/pdf/extract-tables', description: 'Extract tables as text or markdown', category: 'extract', color: '#95E1D3' },
   { id: 'image-to-pdf', name: 'Image to PDF', icon: <FileImage size={28} />, endpoint: '/convert/image-to-pdf', description: 'Convert images into PDF documents', category: 'convert', color: '#DDA0DD' },
   { id: 'pdf-to-jpg', name: 'PDF to JPG', icon: <FileType size={28} />, endpoint: '/convert/pdf-to-jpg', description: 'Convert PDF pages to JPG images', category: 'convert', color: '#DDA0DD' },
+  { id: 'pdf-to-word', name: 'PDF to Word', icon: <FileText size={28} />, endpoint: '/convert/pdf-to-word', description: 'Convert PDF to Word document (.docx)', category: 'convert', color: '#DDA0DD' },
   { id: 'protect', name: 'Protect PDF', icon: <Lock size={28} />, endpoint: '/security/protect', description: 'Secure your PDFs with password protection', category: 'security', color: '#F38181' },
   { id: 'unlock', name: 'Unlock PDF', icon: <Unlock size={28} />, endpoint: '/security/unlock', description: 'Remove password protection from PDFs', category: 'security', color: '#F38181' },
 ];
@@ -72,7 +71,6 @@ const operations: Operation[] = [
 const categories = [
   { id: 'all', name: 'ALL TOOLS', icon: <Sparkles size={16} /> },
   { id: 'organize', name: 'ORGANIZE', icon: <FileText size={16} /> },
-  { id: 'optimize', name: 'OPTIMIZE', icon: <Zap size={16} /> },
   { id: 'convert', name: 'CONVERT', icon: <RefreshCw size={16} /> },
   { id: 'enhance', name: 'ENHANCE', icon: <Droplets size={16} /> },
   { id: 'extract', name: 'EXTRACT', icon: <FileOutput size={16} /> },
@@ -103,7 +101,7 @@ function App() {
   
   const heroRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { scrollYProgress } = useScroll();
   const heroOpacity = useTransform(scrollYProgress, [0, 0.3], [1, 0]);
   const heroScale = useTransform(scrollYProgress, [0, 0.3], [1, 0.95]);
@@ -336,6 +334,12 @@ function App() {
         <div className="bg-gradient-orb orb-1"></div>
         <div className="bg-gradient-orb orb-2"></div>
         <div className="bg-gradient-orb orb-3"></div>
+        {/* Floating particles */}
+        <div className="particles">
+          {[...Array(15)].map((_, i) => (
+            <div key={i} className={`particle particle-${i + 1}`}></div>
+          ))}
+        </div>
       </div>
 
       {/* Header */}
@@ -738,7 +742,7 @@ function App() {
                     <AnimatePresence>
                       {(selectedOperation.id === 'rotate' || selectedOperation.id === 'split' || 
                         selectedOperation.id === 'watermark' || selectedOperation.id === 'protect' ||
-                        selectedOperation.id === 'unlock' || selectedOperation.id === 'compress' ||
+                        selectedOperation.id === 'unlock' ||
                         selectedOperation.id === 'extract-text' || selectedOperation.id === 'extract-tables' ||
                         selectedOperation.id === 'pdf-to-jpg') && (
                         <motion.div 
@@ -772,34 +776,6 @@ function App() {
                                 className="param-input"
                               />
                             </div>
-                          )}
-                          {selectedOperation.id === 'compress' && (
-                            <>
-                              <div className="param-group">
-                                <label>Compression Level</label>
-                                <select 
-                                  value={extraParams.quality || 'medium'}
-                                  onChange={(e) => setExtraParams({...extraParams, quality: e.target.value, target_reduction: ''})}
-                                  className="param-select"
-                                >
-                                  <option value="low">Maximum Compression (Smaller File)</option>
-                                  <option value="medium">Balanced (Recommended)</option>
-                                  <option value="high">Minimal Compression (Best Quality)</option>
-                                </select>
-                              </div>
-                              <div className="param-group">
-                                <label>Or Target Reduction % (10-90)</label>
-                                <input 
-                                  type="number"
-                                  min="10"
-                                  max="90"
-                                  value={extraParams.target_reduction || ''}
-                                  onChange={(e) => setExtraParams({...extraParams, target_reduction: e.target.value})}
-                                  placeholder="e.g., 50 for 50% reduction"
-                                  className="param-input"
-                                />
-                              </div>
-                            </>
                           )}
                           {selectedOperation.id === 'watermark' && (
                             <div className="param-group">

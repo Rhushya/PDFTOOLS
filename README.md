@@ -10,8 +10,7 @@ A beautiful, full-stack PDF manipulation platform with a modern React frontend a
 - 🔗 **Merge PDFs** - Combine multiple PDFs into one
 - ✂️ **Split PDF** - Extract specific pages
 - 🔄 **Rotate Pages** - Rotate by 90°, 180°, or 270°
-- 📦 **Compress PDF** - Reduce file size
-- 💧 **Add Watermark** - Add text watermarks
+-  **Add Watermark** - Add text watermarks
 - 🔢 **Page Numbers** - Add page numbering
 
 ### Extraction
@@ -156,7 +155,42 @@ cd frontend
 npm install
 ```
 
-## 🔧 Configuration
+## �️ Desktop App
+
+### Download
+
+Download the latest release from the [Releases](../../releases) page:
+- **Windows:** `PDFMaster-Setup.exe` (Installer) or `PDFMaster.exe` (Portable)
+- **macOS:** `PDFMaster.dmg`
+- **Linux:** `PDFMaster.AppImage`
+
+### Build from Source
+
+**Windows:**
+```bash
+# Run the build script
+build-app.bat
+```
+
+**All platforms:**
+```bash
+cd frontend
+npm install
+npm run build
+
+# Windows
+npm run electron:build:win
+
+# macOS
+npm run electron:build:mac
+
+# Linux
+npm run electron:build:linux
+```
+
+The built app will be in `frontend/release/`
+
+## �🔧 Configuration
 
 ### Backend (.env)
 ```env

@@ -95,7 +95,7 @@ except ImportError as e:
         pass
 
 # Initialize handlers
-pdf_handler = PDFHandler()
+pdf_handler = PDFHandler(output_dir=TEMP_FOLDER)
 image_handler = ImageHandler()
 doc_handler = DocumentHandler()
 converter = Converter()
@@ -646,6 +646,37 @@ def pdf_to_jpg():
             return error_response('Failed to convert PDF to JPG', error=result.get('error'))
     except Exception as e:
         return error_response('Error converting PDF to JPG', error=e, status=500)
+
+@app.route('/api/convert/pdf-to-word', methods=['POST'])
+def pdf_to_word():
+    """Convert PDF to Word document (.docx)"""
+    try:
+        if 'file' not in request.files:
+            return error_response('No PDF file provided')
+        
+        file = request.files['file']
+        
+        file_id, filepath, original_name = save_uploaded_file(file)
+        if not file_id:
+            return error_response('Invalid file type')
+        
+        output_id = generate_file_id()
+        base_name = os.path.splitext(original_name)[0]
+        output_path = os.path.join(app.config['OUTPUT_FOLDER'], f"{output_id}_{base_name}.docx")
+        
+        result = pdf_handler.pdf_to_word(filepath, output_path)
+        
+        if result['success']:
+            return success_response('PDF converted to Word successfully', {
+                'file_id': output_id,
+                'filename': f"{output_id}_{base_name}.docx",
+                'page_count': result.get('page_count', 0),
+                'download_url': f"/download/{output_id}_{base_name}.docx"
+            })
+        else:
+            return error_response('Failed to convert PDF to Word', error=result.get('error'))
+    except Exception as e:
+        return error_response('Error converting PDF to Word', error=e, status=500)
 
 @app.route('/api/convert/pdf-to-png', methods=['POST'])
 def pdf_to_png():
