@@ -95,7 +95,7 @@ class PDFHandler:
     
     def compress_pdf(self, input_path, output_path, quality='medium', target_reduction=None):
         """
-        Compress PDF file with flexible compression options
+        Compress PDF file using PyPDF2
         
         Args:
             input_path: Path to input PDF
@@ -106,84 +106,102 @@ class PDFHandler:
         try:
             original_size = os.path.getsize(input_path)
             
-            # Set compression parameters based on quality or target_reduction
+            # Read the PDF
+            reader = PdfReader(input_path)
+            writer = PdfWriter()
+            
+            # Determine compression level based on quality
             if target_reduction:
                 reduction_pct = min(max(int(target_reduction), 10), 90)
                 if reduction_pct >= 70:
-                    garbage = 4
-                    image_dpi = 72
+                    image_quality = 20
                 elif reduction_pct >= 50:
-                    garbage = 4
-                    image_dpi = 100
+                    image_quality = 40
                 elif reduction_pct >= 30:
-                    garbage = 3
-                    image_dpi = 120
+                    image_quality = 60
                 else:
-                    garbage = 2
-                    image_dpi = 150
+                    image_quality = 80
             elif quality == 'low':  # Maximum compression
-                garbage = 4
-                image_dpi = 72
-            elif quality == 'high':  # Minimal compression, best quality
-                garbage = 1
-                image_dpi = 200
-            else:  # medium - balanced
-                garbage = 4
-                image_dpi = 100
+                image_quality = 20
+            elif quality == 'high':  # Minimal compression
+                image_quality = 85
+            else:  # medium
+                image_quality = 50
             
-            # Open document
-            doc = fitz.open(input_path)
+            # Copy all pages
+            for page in reader.pages:
+                writer.add_page(page)
             
-            # Create a new PDF with compressed content
-            new_doc = fitz.open()
+            # Remove duplication by using object streams
+            writer.add_metadata(reader.metadata or {})
             
-            for page_num in range(len(doc)):
-                page = doc[page_num]
-                
-                # Create pixmap of page at lower DPI for image-heavy PDFs
-                # This effectively resamples images
-                mat = fitz.Matrix(image_dpi / 72, image_dpi / 72)
-                
-                # Copy page to new document
-                new_doc.insert_pdf(doc, from_page=page_num, to_page=page_num)
+            # Compress each page's content streams
+            for page in writer.pages:
+                page.compress_content_streams()
             
-            # Save with aggressive compression
-            new_doc.save(
-                output_path,
-                garbage=garbage,
-                deflate=True,
-                clean=True,
-                deflate_images=True,
-                deflate_fonts=True,
-                linear=False,
-                pretty=False
-            )
-            new_doc.close()
-            doc.close()
+            # Compress images in the PDF
+            for page in writer.pages:
+                if '/Resources' in page and '/XObject' in page['/Resources']:
+                    x_objects = page['/Resources']['/XObject'].get_object()
+                    for obj_name in x_objects:
+                        obj = x_objects[obj_name]
+                        if obj.get('/Subtype') == '/Image':
+                            try:
+                                # Try to compress the image
+                                if '/Filter' in obj:
+                                    filters = obj['/Filter']
+                                    # Already compressed with DCTDecode (JPEG) - skip
+                                    if filters == '/DCTDecode' or (isinstance(filters, list) and '/DCTDecode' in filters):
+                                        continue
+                                
+                                # Get image data
+                                width = obj.get('/Width', 0)
+                                height = obj.get('/Height', 0)
+                                
+                                if width > 0 and height > 0:
+                                    data = obj.get_data()
+                                    if data:
+                                        # Try to compress with PIL
+                                        try:
+                                            img = Image.open(io.BytesIO(data))
+                                            if img.mode != 'RGB':
+                                                img = img.convert('RGB')
+                                            
+                                            # Compress to JPEG
+                                            img_buffer = io.BytesIO()
+                                            img.save(img_buffer, format='JPEG', quality=image_quality, optimize=True)
+                                            
+                                            # Only use if smaller
+                                            if img_buffer.tell() < len(data):
+                                                obj._data = img_buffer.getvalue()
+                                                obj['/Filter'] = '/DCTDecode'
+                                        except:
+                                            pass
+                            except:
+                                continue
+            
+            # Write the compressed PDF
+            with open(output_path, 'wb') as output_file:
+                writer.write(output_file)
             
             compressed_size = os.path.getsize(output_path)
             
-            # If no significant compression, try alternative approach
+            # If PyPDF2 compression didn't help much, try PyMuPDF as fallback
             if compressed_size >= original_size * 0.95:
-                # Reopen and save with different settings
-                doc2 = fitz.open(input_path)
-                
-                # Try to remove unnecessary objects
-                doc2.save(
-                    output_path,
-                    garbage=4,  # Maximum garbage collection
-                    deflate=True,
-                    clean=True,
-                    deflate_images=True,
-                    deflate_fonts=True,
-                    ascii=False,
-                    expand=False,
-                    linear=False,
-                    pretty=False,
-                    encryption=fitz.PDF_ENCRYPT_NONE
-                )
-                doc2.close()
-                compressed_size = os.path.getsize(output_path)
+                try:
+                    doc = fitz.open(input_path)
+                    doc.save(
+                        output_path,
+                        garbage=4,
+                        deflate=True,
+                        clean=True,
+                        deflate_images=True,
+                        deflate_fonts=True
+                    )
+                    doc.close()
+                    compressed_size = os.path.getsize(output_path)
+                except:
+                    pass
             
             reduction = round((1 - compressed_size / original_size) * 100, 2)
             
