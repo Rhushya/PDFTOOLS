@@ -59,10 +59,70 @@ A beautiful, full-stack PDF manipulation platform with a modern React frontend a
 
 ## 🚀 Quick Start
 
-### Option 1: One-Click Start (Recommended)
-Double-click the `start_pdfmaster.bat` file in the root folder. This will start both backend and frontend automatically.
+### Prerequisites
+- Windows OS
+- Internet connection (for initial setup)
 
-### Option 2: Manual Start
+### Option 1: Automated Installation (Recommended)
+
+1. **Run the launcher:**
+   ```bash
+   launcher.bat
+   ```
+
+2. **Select option 5** to install dependencies:
+   - Automatically checks and installs Conda if missing
+   - Creates `pdfmaster` conda environment
+   - Installs all backend dependencies
+   - Installs all frontend dependencies
+
+3. **Select option 1** to start PDFMaster:
+   - Runs in background (no console windows)
+   - Automatically opens in browser
+   - Logs saved to `logs/` folder
+
+### Option 2: Manual Installation
+
+#### Install Conda (if not already installed)
+Download and install Miniconda from: https://docs.conda.io/en/latest/miniconda.html
+
+#### Setup Backend
+```bash
+conda create -n pdfmaster python=3.12 -y
+conda activate pdfmaster
+cd backend
+pip install -r requirements.txt
+```
+
+#### Setup Frontend
+```bash
+cd frontend
+npm install
+```
+
+### Running the Application
+
+**Background Mode (No Console):**
+```bash
+start.bat
+```
+
+**Console Mode (Show Logs):**
+```bash
+start-console.bat
+```
+
+**Stop All Servers:**
+```bash
+stop.bat
+```
+
+**View Logs:**
+```bash
+view-logs.bat
+```
+
+### Option 3: Legacy Start
 
 #### Backend
 ```bash
