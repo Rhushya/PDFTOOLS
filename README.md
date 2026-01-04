@@ -2,6 +2,11 @@
 
 A powerful, full-stack PDF manipulation platform featuring a modern React frontend and Python Flask backend. Process PDFs locally with no file size limits, no cloud uploads, and complete privacy.
 
+## Live Demo
+
+- **Frontend**: https://pdftools-eight.vercel.app/
+- **Backend API**: https://pdftools-iqsc.onrender.com
+
 ---
 
 ## Table of Contents
