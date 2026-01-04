@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
 import { Toaster, toast } from 'react-hot-toast';
 import axios from 'axios';
 import {
@@ -16,18 +16,22 @@ import {
   Image,
   Lock,
   Unlock,
-  Trash2,
   Download,
   X,
-  Check,
   Loader2,
-  ChevronRight,
   Sparkles,
   Shield,
   Zap,
   FileImage,
   FileType,
-  RefreshCw
+  RefreshCw,
+  ArrowRight,
+  ChevronDown,
+  CheckCircle2,
+  Github,
+  Twitter,
+  Linkedin,
+  Mail
 } from 'lucide-react';
 import './App.css';
 
@@ -50,28 +54,35 @@ interface Operation {
 }
 
 const operations: Operation[] = [
-  { id: 'merge', name: 'Merge PDFs', icon: <Merge size={24} />, endpoint: '/pdf/merge', description: 'Combine multiple PDFs into one', category: 'organize', color: '#3B82F6' },
-  { id: 'split', name: 'Split PDF', icon: <Scissors size={24} />, endpoint: '/pdf/split', description: 'Extract pages from PDF', category: 'organize', color: '#8B5CF6' },
-  { id: 'rotate', name: 'Rotate Pages', icon: <RotateCw size={24} />, endpoint: '/pdf/rotate', description: 'Rotate PDF pages', category: 'organize', color: '#EC4899' },
-  { id: 'compress', name: 'Compress PDF', icon: <Minimize2 size={24} />, endpoint: '/pdf/compress', description: 'Reduce file size', category: 'optimize', color: '#10B981' },
-  { id: 'watermark', name: 'Add Watermark', icon: <Droplets size={24} />, endpoint: '/pdf/watermark', description: 'Add text watermark', category: 'enhance', color: '#F59E0B' },
-  { id: 'page-numbers', name: 'Page Numbers', icon: <Hash size={24} />, endpoint: '/pdf/page-numbers', description: 'Add page numbers', category: 'enhance', color: '#6366F1' },
-  { id: 'extract-text', name: 'Extract Text', icon: <FileOutput size={24} />, endpoint: '/pdf/extract-text', description: 'Extract text content', category: 'extract', color: '#14B8A6' },
-  { id: 'extract-images', name: 'Extract Images', icon: <Image size={24} />, endpoint: '/pdf/extract-images', description: 'Extract all images', category: 'extract', color: '#F97316' },
-  { id: 'image-to-pdf', name: 'Image to PDF', icon: <FileImage size={24} />, endpoint: '/convert/image-to-pdf', description: 'Convert images to PDF', category: 'convert', color: '#06B6D4' },
-  { id: 'pdf-to-jpg', name: 'PDF to JPG', icon: <FileType size={24} />, endpoint: '/convert/pdf-to-jpg', description: 'Convert PDF to images', category: 'convert', color: '#84CC16' },
-  { id: 'protect', name: 'Protect PDF', icon: <Lock size={24} />, endpoint: '/security/protect', description: 'Add password protection', category: 'security', color: '#EF4444' },
-  { id: 'unlock', name: 'Unlock PDF', icon: <Unlock size={24} />, endpoint: '/security/unlock', description: 'Remove password', category: 'security', color: '#22C55E' },
+  { id: 'merge', name: 'Merge PDFs', icon: <Merge size={28} />, endpoint: '/pdf/merge', description: 'Combine multiple PDF files into a single document', category: 'organize', color: '#FF6B4A' },
+  { id: 'split', name: 'Split PDF', icon: <Scissors size={28} />, endpoint: '/pdf/split', description: 'Extract specific pages or split into multiple files', category: 'organize', color: '#FF6B4A' },
+  { id: 'rotate', name: 'Rotate Pages', icon: <RotateCw size={28} />, endpoint: '/pdf/rotate', description: 'Rotate PDF pages to any angle you need', category: 'organize', color: '#FF6B4A' },
+  { id: 'compress', name: 'Compress PDF', icon: <Minimize2 size={28} />, endpoint: '/pdf/compress', description: 'Reduce file size while maintaining quality', category: 'optimize', color: '#4ECDC4' },
+  { id: 'watermark', name: 'Add Watermark', icon: <Droplets size={28} />, endpoint: '/pdf/watermark', description: 'Add custom text watermarks to your PDFs', category: 'enhance', color: '#FFE66D' },
+  { id: 'page-numbers', name: 'Page Numbers', icon: <Hash size={28} />, endpoint: '/pdf/page-numbers', description: 'Automatically add page numbers to documents', category: 'enhance', color: '#FFE66D' },
+  { id: 'extract-text', name: 'Extract Text', icon: <FileOutput size={28} />, endpoint: '/pdf/extract-text', description: 'Pull all text content from PDF files', category: 'extract', color: '#95E1D3' },
+  { id: 'extract-images', name: 'Extract Images', icon: <Image size={28} />, endpoint: '/pdf/extract-images', description: 'Extract all embedded images from PDFs', category: 'extract', color: '#95E1D3' },
+  { id: 'image-to-pdf', name: 'Image to PDF', icon: <FileImage size={28} />, endpoint: '/convert/image-to-pdf', description: 'Convert images into PDF documents', category: 'convert', color: '#DDA0DD' },
+  { id: 'pdf-to-jpg', name: 'PDF to JPG', icon: <FileType size={28} />, endpoint: '/convert/pdf-to-jpg', description: 'Convert PDF pages to high-quality images', category: 'convert', color: '#DDA0DD' },
+  { id: 'protect', name: 'Protect PDF', icon: <Lock size={28} />, endpoint: '/security/protect', description: 'Secure your PDFs with password protection', category: 'security', color: '#F38181' },
+  { id: 'unlock', name: 'Unlock PDF', icon: <Unlock size={28} />, endpoint: '/security/unlock', description: 'Remove password protection from PDFs', category: 'security', color: '#F38181' },
 ];
 
 const categories = [
-  { id: 'all', name: 'All Tools', icon: <Sparkles size={18} /> },
-  { id: 'organize', name: 'Organize', icon: <FileText size={18} /> },
-  { id: 'optimize', name: 'Optimize', icon: <Zap size={18} /> },
-  { id: 'convert', name: 'Convert', icon: <RefreshCw size={18} /> },
-  { id: 'enhance', name: 'Enhance', icon: <Droplets size={18} /> },
-  { id: 'extract', name: 'Extract', icon: <FileOutput size={18} /> },
-  { id: 'security', name: 'Security', icon: <Shield size={18} /> },
+  { id: 'all', name: 'ALL TOOLS', icon: <Sparkles size={16} /> },
+  { id: 'organize', name: 'ORGANIZE', icon: <FileText size={16} /> },
+  { id: 'optimize', name: 'OPTIMIZE', icon: <Zap size={16} /> },
+  { id: 'convert', name: 'CONVERT', icon: <RefreshCw size={16} /> },
+  { id: 'enhance', name: 'ENHANCE', icon: <Droplets size={16} /> },
+  { id: 'extract', name: 'EXTRACT', icon: <FileOutput size={16} /> },
+  { id: 'security', name: 'SECURITY', icon: <Shield size={16} /> },
+];
+
+const features = [
+  { icon: <Zap size={24} />, title: 'LIGHTNING FAST', desc: 'Process PDFs in seconds with optimized algorithms' },
+  { icon: <Shield size={24} />, title: 'FULLY SECURE', desc: 'All processing happens locally on your machine' },
+  { icon: <Sparkles size={24} />, title: 'NO LIMITS', desc: 'No file size restrictions or daily limits' },
+  { icon: <RefreshCw size={24} />, title: 'ALWAYS FREE', desc: 'All tools are completely free to use' },
 ];
 
 function App() {
@@ -81,9 +92,27 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [showModal, setShowModal] = useState(false);
-  const [modalContent, setModalContent] = useState<{ title: string; message: string; type: 'success' | 'error' | 'info' }>({ title: '', message: '', type: 'info' });
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [extraParams, setExtraParams] = useState<Record<string, string>>({});
+  const [scrolled, setScrolled] = useState(false);
+  
+  const heroRef = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll();
+  const heroOpacity = useTransform(scrollYProgress, [0, 0.3], [1, 0]);
+  const heroScale = useTransform(scrollYProgress, [0, 0.3], [1, 0.95]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 50);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Smooth scroll
+  useEffect(() => {
+    document.documentElement.style.scrollBehavior = 'smooth';
+  }, []);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const newFiles = acceptedFiles.map(file => ({
@@ -92,7 +121,14 @@ function App() {
       preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined
     }));
     setFiles(prev => [...prev, ...newFiles]);
-    toast.success(`${acceptedFiles.length} file(s) added`);
+    toast.success(`${acceptedFiles.length} file(s) added`, {
+      icon: '📄',
+      style: {
+        background: '#1a1a2e',
+        color: '#fff',
+        border: '1px solid rgba(255,107,74,0.3)',
+      },
+    });
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -100,19 +136,16 @@ function App() {
     accept: {
       'application/pdf': ['.pdf'],
       'image/*': ['.jpg', '.jpeg', '.png', '.gif', '.bmp'],
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-      'application/msword': ['.doc'],
     }
   });
 
   const removeFile = (id: string) => {
     setFiles(prev => prev.filter(f => f.id !== id));
-    toast.success('File removed');
   };
 
   const clearAllFiles = () => {
     setFiles([]);
-    toast.success('All files cleared');
+    setSelectedOperation(null);
   };
 
   const processFiles = async () => {
@@ -143,12 +176,6 @@ function App() {
 
       const response = await axios.post(`${API_URL}${selectedOperation.endpoint}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
-        onUploadProgress: (progressEvent) => {
-          if (progressEvent.total) {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            setProgress(percentCompleted);
-          }
-        }
       });
 
       clearInterval(progressInterval);
@@ -157,25 +184,21 @@ function App() {
       if (response.data.success) {
         const downloadLink = response.data.data.download_url;
         setDownloadUrl(downloadLink);
-        setModalContent({
-          title: 'Success!',
-          message: response.data.message || 'Operation completed successfully',
-          type: 'success'
-        });
         setShowModal(true);
-        toast.success('Operation completed!');
+        toast.success('Operation completed!', {
+          icon: '✨',
+          style: {
+            background: '#1a1a2e',
+            color: '#fff',
+            border: '1px solid rgba(78,205,196,0.3)',
+          },
+        });
       } else {
         throw new Error(response.data.message);
       }
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } }; message?: string };
-      setModalContent({
-        title: 'Error',
-        message: err.response?.data?.message || err.message || 'An error occurred',
-        type: 'error'
-      });
-      setShowModal(true);
-      toast.error('Operation failed');
+      toast.error(err.response?.data?.message || err.message || 'An error occurred');
     } finally {
       setIsProcessing(false);
       setTimeout(() => setProgress(0), 1000);
@@ -194,387 +217,477 @@ function App() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  const scrollToTools = () => {
+    document.getElementById('tools')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   return (
     <div className="app">
-      <Toaster 
-        position="top-right"
-        toastOptions={{
-          style: {
-            background: 'rgba(30, 30, 30, 0.95)',
-            color: '#fff',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255,255,255,0.1)',
-          },
-        }}
-      />
+      <Toaster position="top-center" />
 
-      <div className="background-gradient"></div>
-      <div className="background-blur"></div>
+      {/* Animated Background */}
+      <div className="bg-pattern">
+        <div className="bg-grid"></div>
+        <div className="bg-gradient-orb orb-1"></div>
+        <div className="bg-gradient-orb orb-2"></div>
+        <div className="bg-gradient-orb orb-3"></div>
+      </div>
 
+      {/* Header */}
       <motion.header 
-        className="header"
-        initial={{ y: -100, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
+        className={`header ${scrolled ? 'header-scrolled' : ''}`}
+        initial={{ y: -100 }}
+        animate={{ y: 0 }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
       >
-        <div className="header-content">
-          <div className="logo">
-            <motion.div 
-              className="logo-icon"
-              whileHover={{ rotate: 360 }}
-              transition={{ duration: 0.5 }}
-            >
-              <FileText size={32} />
-            </motion.div>
-            <div className="logo-text">
-              <h1>PDFMaster</h1>
-              <span>Professional PDF Tools</span>
-            </div>
-          </div>
-          <nav className="nav-links">
-            <a href="#tools">Tools</a>
-            <a href="#upload">Upload</a>
-            <motion.button 
-              className="btn-glow"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              Get Started
-            </motion.button>
+        <div className="header-inner">
+          <motion.div 
+            className="logo"
+            whileHover={{ scale: 1.02 }}
+          >
+            <span className="logo-text">pdfmaster</span>
+          </motion.div>
+          
+          <nav className="nav">
+            <a href="#tools" className="nav-link">TOOLS</a>
+            <a href="#features" className="nav-link">FEATURES</a>
+            <a href="#upload" className="nav-link">UPLOAD</a>
           </nav>
+
+          <motion.button 
+            className="btn-primary"
+            whileHover={{ scale: 1.05, y: -2 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={scrollToTools}
+          >
+            GET STARTED
+          </motion.button>
         </div>
       </motion.header>
 
+      {/* Hero Section */}
       <motion.section 
+        ref={heroRef}
         className="hero"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.8, delay: 0.2 }}
+        style={{ opacity: heroOpacity, scale: heroScale }}
       >
         <div className="hero-content">
-          <motion.h2
-            initial={{ y: 30, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-          >
-            All-in-One <span className="gradient-text">PDF Solution</span>
-          </motion.h2>
-          <motion.p
-            initial={{ y: 30, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-          >
-            Merge, split, compress, convert and edit PDF files with ease.
-            Free, secure, and runs entirely on your machine.
-          </motion.p>
           <motion.div 
-            className="hero-stats"
-            initial={{ y: 30, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.5 }}
+            className="hero-badge"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.6 }}
           >
-            <div className="stat">
-              <span className="stat-number">12+</span>
-              <span className="stat-label">PDF Tools</span>
-            </div>
-            <div className="stat">
-              <span className="stat-number">100%</span>
-              <span className="stat-label">Free & Secure</span>
-            </div>
-            <div className="stat">
-              <span className="stat-number">Local</span>
-              <span className="stat-label">Processing</span>
-            </div>
+            <span className="badge-dot"></span>
+            FREE & OPEN SOURCE
           </motion.div>
+
+          <motion.h1 
+            className="hero-title"
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+          >
+            TRANSFORM.<br />
+            <span className="title-accent">ORGANIZE.</span><br />
+            ACCELERATE.
+          </motion.h1>
+
+          <motion.p 
+            className="hero-subtitle"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5, duration: 0.6 }}
+          >
+            PDF TOOLS BUILT FOR SPEED. WIRED FOR SIMPLICITY.
+          </motion.p>
+
+          <motion.p 
+            className="hero-desc"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6, duration: 0.6 }}
+          >
+            PDFMaster puts powerful PDF tools at your fingertips. Forget clunky software and 
+            online limits - this is PDF processing with a turbo boost. From merge to convert 
+            in seconds, PDFMaster is your productivity powerhouse.
+          </motion.p>
+
+          <motion.button 
+            className="btn-hero"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7, duration: 0.6 }}
+            whileHover={{ scale: 1.05, x: 5 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={scrollToTools}
+          >
+            GO FROM FILES TO DONE <ArrowRight size={20} />
+          </motion.button>
+
+          <motion.div 
+            className="scroll-indicator"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.2 }}
+            onClick={scrollToTools}
+          >
+            <ChevronDown size={24} className="bounce" />
+          </motion.div>
+        </div>
+
+        {/* Floating Elements */}
+        <div className="hero-visual">
+          <motion.div 
+            className="floating-card card-1"
+            initial={{ opacity: 0, x: 100 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.8, duration: 0.8 }}
+          >
+            <div className="card-icon"><Merge size={32} /></div>
+            <span>Merge</span>
+          </motion.div>
+          <motion.div 
+            className="floating-card card-2"
+            initial={{ opacity: 0, x: 100 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.9, duration: 0.8 }}
+          >
+            <div className="card-icon"><Scissors size={32} /></div>
+            <span>Split</span>
+          </motion.div>
+          <motion.div 
+            className="floating-card card-3"
+            initial={{ opacity: 0, x: 100 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 1.0, duration: 0.8 }}
+          >
+            <div className="card-icon"><Lock size={32} /></div>
+            <span>Protect</span>
+          </motion.div>
+          
+          {/* Connecting Lines Animation */}
+          <svg className="connection-lines" viewBox="0 0 300 200">
+            <motion.path
+              d="M50,100 Q150,50 250,100"
+              stroke="#FF6B4A"
+              strokeWidth="2"
+              fill="none"
+              initial={{ pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ delay: 1.2, duration: 1.5 }}
+            />
+            <motion.path
+              d="M50,100 Q150,150 250,100"
+              stroke="#FF6B4A"
+              strokeWidth="2"
+              fill="none"
+              initial={{ pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ delay: 1.4, duration: 1.5 }}
+            />
+            <motion.circle cx="50" cy="100" r="12" fill="#FF6B4A" 
+              initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 1.1 }} />
+            <motion.circle cx="250" cy="100" r="12" fill="#FF6B4A"
+              initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 1.6 }} />
+          </svg>
         </div>
       </motion.section>
 
-      <main className="main-content">
-        <motion.section 
-          id="upload"
-          className="upload-section glass-card"
-          initial={{ y: 50, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
+      {/* Features Section */}
+      <section id="features" className="features-section">
+        <div className="features-grid">
+          {features.map((feature, index) => (
+            <motion.div 
+              key={index}
+              className="feature-card"
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ delay: index * 0.1, duration: 0.6 }}
+              whileHover={{ y: -8, transition: { duration: 0.2 } }}
+            >
+              <div className="feature-icon">{feature.icon}</div>
+              <h3 className="feature-title">{feature.title}</h3>
+              <p className="feature-desc">{feature.desc}</p>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* Tools Section */}
+      <section id="tools" className="tools-section">
+        <motion.div 
+          className="section-header"
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
         >
-          <h3><Upload size={24} /> Upload Your Files</h3>
-          
-          <div {...getRootProps()} className={`dropzone ${isDragActive ? 'active' : ''}`}>
+          <h2 className="section-title">POWERFUL TOOLS</h2>
+          <p className="section-subtitle">Everything you need to work with PDFs</p>
+        </motion.div>
+
+        {/* Category Filter */}
+        <motion.div 
+          className="category-filter"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.2, duration: 0.6 }}
+        >
+          {categories.map((cat) => (
+            <motion.button
+              key={cat.id}
+              className={`category-btn ${selectedCategory === cat.id ? 'active' : ''}`}
+              onClick={() => setSelectedCategory(cat.id)}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              {cat.icon}
+              {cat.name}
+            </motion.button>
+          ))}
+        </motion.div>
+
+        {/* Operations Grid */}
+        <motion.div 
+          className="tools-grid"
+          layout
+        >
+          <AnimatePresence mode="popLayout">
+            {filteredOperations.map((op, index) => (
+              <motion.div
+                key={op.id}
+                className={`tool-card ${selectedOperation?.id === op.id ? 'selected' : ''}`}
+                layout
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ delay: index * 0.05, duration: 0.3 }}
+                whileHover={{ 
+                  y: -12, 
+                  scale: 1.02,
+                  transition: { duration: 0.2 } 
+                }}
+                onClick={() => setSelectedOperation(op)}
+                style={{ '--card-color': op.color } as React.CSSProperties}
+              >
+                <div className="tool-icon" style={{ backgroundColor: `${op.color}20`, color: op.color }}>
+                  {op.icon}
+                </div>
+                <h3 className="tool-name">{op.name}</h3>
+                <p className="tool-desc">{op.description}</p>
+                <div className="tool-arrow">
+                  <ArrowRight size={18} />
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </motion.div>
+      </section>
+
+      {/* Upload Section */}
+      <section id="upload" className="upload-section">
+        <motion.div 
+          className="upload-container"
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+        >
+          <div className="upload-header">
+            <h2>READY TO PROCESS?</h2>
+            <p>Drop your files and select an operation</p>
+          </div>
+
+          {/* Selected Operation Badge */}
+          <AnimatePresence>
+            {selectedOperation && (
+              <motion.div 
+                className="selected-operation"
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                style={{ borderColor: selectedOperation.color }}
+              >
+                <div className="selected-icon" style={{ color: selectedOperation.color }}>
+                  {selectedOperation.icon}
+                </div>
+                <span>{selectedOperation.name}</span>
+                <button onClick={() => setSelectedOperation(null)} className="clear-selection">
+                  <X size={16} />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Dropzone */}
+          <div {...getRootProps()}>
             <input {...getInputProps()} />
             <motion.div 
-              className="dropzone-content"
-              animate={{ y: isDragActive ? -10 : 0 }}
-              whileHover={{ scale: 1.02 }}
+              className={`dropzone ${isDragActive ? 'drag-active' : ''}`}
+              whileHover={{ scale: 1.01 }}
+              animate={isDragActive ? { scale: 1.02, borderColor: '#FF6B4A' } : {}}
             >
-              <div className="dropzone-icon">
+              <motion.div 
+                className="dropzone-icon"
+                animate={isDragActive ? { y: -10, scale: 1.1 } : { y: 0, scale: 1 }}
+              >
                 <Upload size={48} />
-              </div>
+              </motion.div>
               <p className="dropzone-title">
                 {isDragActive ? 'Drop files here...' : 'Drag & drop files here'}
               </p>
               <p className="dropzone-subtitle">or click to browse</p>
-              <span className="dropzone-formats">PDF, JPG, PNG, DOCX supported</span>
+              <span className="dropzone-hint">PDF, JPG, PNG supported</span>
             </motion.div>
           </div>
 
+          {/* File List */}
           <AnimatePresence>
             {files.length > 0 && (
               <motion.div 
                 className="file-list"
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
               >
                 <div className="file-list-header">
-                  <h4>{files.length} file(s) selected</h4>
-                  <motion.button 
-                    className="btn-clear"
-                    onClick={clearAllFiles}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <Trash2 size={16} /> Clear All
-                  </motion.button>
+                  <span>{files.length} file(s) selected</span>
+                  <button onClick={clearAllFiles} className="clear-all">
+                    Clear all
+                  </button>
                 </div>
-                
                 {files.map((file, index) => (
                   <motion.div 
                     key={file.id}
                     className="file-item"
-                    initial={{ x: -50, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    exit={{ x: 50, opacity: 0 }}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
                     transition={{ delay: index * 0.05 }}
                   >
-                    <div className="file-icon">
-                      {file.preview ? (
-                        <img src={file.preview} alt="" className="file-preview" />
-                      ) : (
-                        <FileText size={24} />
-                      )}
-                    </div>
+                    <FileText size={20} className="file-icon" />
                     <div className="file-info">
                       <span className="file-name">{file.file.name}</span>
                       <span className="file-size">{formatFileSize(file.file.size)}</span>
                     </div>
-                    <motion.button 
-                      className="btn-remove"
-                      onClick={() => removeFile(file.id)}
-                      whileHover={{ scale: 1.1, backgroundColor: 'rgba(239, 68, 68, 0.2)' }}
-                      whileTap={{ scale: 0.9 }}
-                    >
-                      <X size={18} />
-                    </motion.button>
+                    <button onClick={() => removeFile(file.id)} className="remove-file">
+                      <X size={16} />
+                    </button>
                   </motion.div>
                 ))}
               </motion.div>
             )}
           </AnimatePresence>
-        </motion.section>
 
-        <motion.section 
-          id="tools"
-          className="operations-section"
-          initial={{ y: 50, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.5 }}
-        >
-          <h3><Sparkles size={24} /> Choose Operation</h3>
-
-          <div className="category-filter">
-            {categories.map((cat) => (
-              <motion.button
-                key={cat.id}
-                className={`category-btn ${selectedCategory === cat.id ? 'active' : ''}`}
-                onClick={() => setSelectedCategory(cat.id)}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+          {/* Extra Parameters */}
+          <AnimatePresence>
+            {selectedOperation && (selectedOperation.id === 'rotate' || selectedOperation.id === 'split' || 
+              selectedOperation.id === 'watermark' || selectedOperation.id === 'protect') && (
+              <motion.div 
+                className="params-section"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
               >
-                {cat.icon}
-                {cat.name}
-              </motion.button>
-            ))}
-          </div>
-
-          <motion.div className="operations-grid" layout>
-            <AnimatePresence mode="popLayout">
-              {filteredOperations.map((op, index) => (
-                <motion.button
-                  key={op.id}
-                  className={`operation-card ${selectedOperation?.id === op.id ? 'selected' : ''}`}
-                  onClick={() => {
-                    setSelectedOperation(op);
-                    setExtraParams({});
-                  }}
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.8, opacity: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  whileHover={{ 
-                    scale: 1.03, 
-                    y: -5,
-                    boxShadow: `0 20px 40px ${op.color}30`
-                  }}
-                  whileTap={{ scale: 0.97 }}
-                  style={{ '--accent-color': op.color } as React.CSSProperties}
-                >
-                  <div className="operation-icon" style={{ background: `${op.color}20`, color: op.color }}>
-                    {op.icon}
-                  </div>
-                  <div className="operation-info">
-                    <span className="operation-name">{op.name}</span>
-                    <span className="operation-desc">{op.description}</span>
-                  </div>
-                  <ChevronRight size={20} className="operation-arrow" />
-                </motion.button>
-              ))}
-            </AnimatePresence>
-          </motion.div>
-        </motion.section>
-
-        <AnimatePresence>
-          {selectedOperation && (
-            <motion.section 
-              className="params-section glass-card"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-            >
-              <h4>Options for {selectedOperation.name}</h4>
-              <div className="params-grid">
-                {selectedOperation.id === 'watermark' && (
-                  <>
-                    <div className="param-group">
-                      <label>Watermark Text</label>
-                      <input 
-                        type="text" 
-                        placeholder="Enter watermark text"
-                        value={extraParams.text || ''}
-                        onChange={(e) => setExtraParams(prev => ({ ...prev, text: e.target.value }))}
-                      />
-                    </div>
-                    <div className="param-group">
-                      <label>Opacity (0-1)</label>
-                      <input 
-                        type="number" 
-                        min="0" 
-                        max="1" 
-                        step="0.1"
-                        placeholder="0.3"
-                        value={extraParams.opacity || ''}
-                        onChange={(e) => setExtraParams(prev => ({ ...prev, opacity: e.target.value }))}
-                      />
-                    </div>
-                  </>
-                )}
                 {selectedOperation.id === 'rotate' && (
                   <div className="param-group">
                     <label>Rotation Angle</label>
                     <select 
                       value={extraParams.angle || '90'}
-                      onChange={(e) => setExtraParams(prev => ({ ...prev, angle: e.target.value }))}
+                      onChange={(e) => setExtraParams({...extraParams, angle: e.target.value})}
+                      className="param-select"
                     >
-                      <option value="90">90°</option>
+                      <option value="90">90° Clockwise</option>
                       <option value="180">180°</option>
-                      <option value="270">270°</option>
+                      <option value="270">270° (90° Counter-clockwise)</option>
                     </select>
-                  </div>
-                )}
-                {selectedOperation.id === 'compress' && (
-                  <div className="param-group">
-                    <label>Quality</label>
-                    <select 
-                      value={extraParams.quality || 'medium'}
-                      onChange={(e) => setExtraParams(prev => ({ ...prev, quality: e.target.value }))}
-                    >
-                      <option value="low">Low (Smallest Size)</option>
-                      <option value="medium">Medium (Balanced)</option>
-                      <option value="high">High (Best Quality)</option>
-                    </select>
-                  </div>
-                )}
-                {(selectedOperation.id === 'protect' || selectedOperation.id === 'unlock') && (
-                  <div className="param-group">
-                    <label>Password</label>
-                    <input 
-                      type="password" 
-                      placeholder="Enter password"
-                      value={extraParams.password || ''}
-                      onChange={(e) => setExtraParams(prev => ({ ...prev, password: e.target.value }))}
-                    />
                   </div>
                 )}
                 {selectedOperation.id === 'split' && (
                   <div className="param-group">
-                    <label>Pages (e.g., 1,3,5-7)</label>
+                    <label>Page Range (e.g., 1-3)</label>
                     <input 
-                      type="text" 
-                      placeholder="Leave empty for all pages"
+                      type="text"
                       value={extraParams.pages || ''}
-                      onChange={(e) => setExtraParams(prev => ({ ...prev, pages: e.target.value }))}
+                      onChange={(e) => setExtraParams({...extraParams, pages: e.target.value})}
+                      placeholder="1-3 or 1,3,5"
+                      className="param-input"
                     />
                   </div>
                 )}
-              </div>
-            </motion.section>
-          )}
-        </AnimatePresence>
-
-        <motion.section 
-          className="action-section"
-          initial={{ y: 50, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.6 }}
-        >
-          <AnimatePresence>
-            {isProcessing && (
-              <motion.div 
-                className="progress-container"
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-              >
-                <div className="progress-bar">
-                  <motion.div 
-                    className="progress-fill"
-                    initial={{ width: 0 }}
-                    animate={{ width: `${progress}%` }}
-                    transition={{ duration: 0.3 }}
-                  />
-                </div>
-                <span className="progress-text">{progress}% Complete</span>
+                {selectedOperation.id === 'watermark' && (
+                  <div className="param-group">
+                    <label>Watermark Text</label>
+                    <input 
+                      type="text"
+                      value={extraParams.text || ''}
+                      onChange={(e) => setExtraParams({...extraParams, text: e.target.value})}
+                      placeholder="CONFIDENTIAL"
+                      className="param-input"
+                    />
+                  </div>
+                )}
+                {selectedOperation.id === 'protect' && (
+                  <div className="param-group">
+                    <label>Password</label>
+                    <input 
+                      type="password"
+                      value={extraParams.password || ''}
+                      onChange={(e) => setExtraParams({...extraParams, password: e.target.value})}
+                      placeholder="Enter password"
+                      className="param-input"
+                    />
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
 
+          {/* Process Button */}
           <motion.button
-            className="btn-process"
+            className={`btn-process ${isProcessing ? 'processing' : ''}`}
             onClick={processFiles}
             disabled={isProcessing || files.length === 0 || !selectedOperation}
-            whileHover={{ scale: 1.02, boxShadow: '0 20px 40px rgba(99, 102, 241, 0.4)' }}
+            whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
             {isProcessing ? (
               <>
-                <Loader2 className="spin" size={24} />
-                Processing...
+                <Loader2 size={20} className="spin" />
+                Processing... {progress}%
               </>
             ) : (
               <>
-                <Zap size={24} />
-                Process Files
+                <Zap size={20} />
+                PROCESS FILES
               </>
             )}
           </motion.button>
 
-          {selectedOperation && (
-            <p className="selected-operation-info">
-              Selected: <strong>{selectedOperation.name}</strong> • {files.length} file(s)
-            </p>
-          )}
-        </motion.section>
-      </main>
+          {/* Progress Bar */}
+          <AnimatePresence>
+            {isProcessing && (
+              <motion.div 
+                className="progress-bar"
+                initial={{ opacity: 0, scaleX: 0 }}
+                animate={{ opacity: 1, scaleX: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <motion.div 
+                  className="progress-fill"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress}%` }}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+      </section>
 
+      {/* Success Modal */}
       <AnimatePresence>
         {showModal && (
           <motion.div 
@@ -585,49 +698,61 @@ function App() {
             onClick={() => setShowModal(false)}
           >
             <motion.div 
-              className={`modal glass-card ${modalContent.type}`}
-              initial={{ scale: 0.8, y: 50, opacity: 0 }}
-              animate={{ scale: 1, y: 0, opacity: 1 }}
-              exit={{ scale: 0.8, y: 50, opacity: 0 }}
-              transition={{ type: "spring", damping: 20 }}
+              className="modal"
+              initial={{ opacity: 0, scale: 0.8, y: 50 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: 50 }}
+              transition={{ type: "spring", damping: 25 }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className={`modal-icon ${modalContent.type}`}>
-                {modalContent.type === 'success' ? <Check size={48} /> : <X size={48} />}
+              <div className="modal-icon">
+                <CheckCircle2 size={64} />
               </div>
-              <h3>{modalContent.title}</h3>
-              <p>{modalContent.message}</p>
-              
-              <div className="modal-actions">
-                {downloadUrl && modalContent.type === 'success' && (
-                  <motion.a
-                    href={downloadUrl}
-                    className="btn-download"
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    download
-                  >
-                    <Download size={20} />
-                    Download Result
-                  </motion.a>
-                )}
-                <motion.button
-                  className="btn-close"
-                  onClick={() => setShowModal(false)}
+              <h3>Success!</h3>
+              <p>Your file has been processed successfully</p>
+              {downloadUrl && (
+                <motion.a
+                  href={downloadUrl}
+                  className="btn-download"
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
-                  Close
-                </motion.button>
-              </div>
+                  <Download size={20} />
+                  DOWNLOAD FILE
+                </motion.a>
+              )}
+              <button className="modal-close" onClick={() => setShowModal(false)}>
+                Close
+              </button>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
+      {/* Footer */}
       <footer className="footer">
-        <p>© 2026 PDFMaster • All your PDF needs in one place</p>
-        <p className="footer-sub">Powered by Python & React • 100% Open Source</p>
+        <div className="footer-content">
+          <div className="footer-brand">
+            <span className="logo-text">pdfmaster</span>
+            <p>Professional PDF tools for everyone</p>
+          </div>
+          <div className="footer-links">
+            <a href="#tools">Tools</a>
+            <a href="#features">Features</a>
+            <a href="https://github.com/Rhushya/PDFTOOLS" target="_blank" rel="noopener noreferrer">GitHub</a>
+          </div>
+          <div className="footer-social">
+            <a href="https://github.com/Rhushya/PDFTOOLS" target="_blank" rel="noopener noreferrer">
+              <Github size={20} />
+            </a>
+            <a href="#"><Twitter size={20} /></a>
+            <a href="#"><Linkedin size={20} /></a>
+            <a href="#"><Mail size={20} /></a>
+          </div>
+        </div>
+        <div className="footer-bottom">
+          <p>© 2026 PDFMaster. All rights reserved.</p>
+        </div>
       </footer>
     </div>
   );

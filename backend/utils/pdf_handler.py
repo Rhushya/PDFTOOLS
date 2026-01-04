@@ -14,6 +14,7 @@ import io
 class PDFHandler:
     """
     Comprehensive PDF manipulation handler using PyPDF2, PyMuPDF, and ReportLab
+    Returns dict with 'success' key for all operations
     """
     
     def __init__(self):
@@ -25,16 +26,7 @@ class PDFHandler:
         ]
     
     def merge_pdfs(self, input_files, output_path):
-        """
-        Merge multiple PDFs into a single document
-        
-        Args:
-            input_files (list): List of PDF file paths
-            output_path (str): Output file path
-            
-        Returns:
-            bool: Success status
-        """
+        """Merge multiple PDFs into a single document"""
         try:
             merger = PdfMerger()
             
@@ -44,29 +36,28 @@ class PDFHandler:
             
             merger.write(output_path)
             merger.close()
-            return True
+            return {'success': True, 'output_path': output_path}
         except Exception as e:
-            print(f"Error merging PDFs: {e}")
-            return False
+            return {'success': False, 'error': str(e)}
     
-    def split_pdf(self, input_path, pages, output_dir):
-        """
-        Extract specific pages from PDF
-        
-        Args:
-            input_path (str): Input PDF path
-            pages (list): List of page numbers (1-indexed), None for all
-            output_dir (str): Output directory
-            
-        Returns:
-            list: List of output file paths
-        """
+    def split_pdf(self, input_path, output_dir, pages_str):
+        """Extract specific pages from PDF"""
         try:
             reader = PdfReader(input_path)
             total_pages = len(reader.pages)
             output_files = []
             
-            if pages is None:
+            # Parse pages string (e.g., "1-3" or "1,3,5")
+            pages = []
+            if pages_str:
+                if '-' in pages_str:
+                    start, end = pages_str.split('-')
+                    pages = list(range(int(start), int(end) + 1))
+                elif ',' in pages_str:
+                    pages = [int(p.strip()) for p in pages_str.split(',')]
+                else:
+                    pages = [int(pages_str)]
+            else:
                 pages = list(range(1, total_pages + 1))
             
             for page_num in pages:
@@ -79,24 +70,12 @@ class PDFHandler:
                         writer.write(f)
                     output_files.append(output_file)
             
-            return output_files
+            return {'success': True, 'pages': output_files, 'page_count': len(output_files)}
         except Exception as e:
-            print(f"Error splitting PDF: {e}")
-            return []
+            return {'success': False, 'error': str(e)}
     
-    def rotate_pages(self, input_path, output_path, angle, pages=None):
-        """
-        Rotate PDF pages
-        
-        Args:
-            input_path (str): Input PDF path
-            output_path (str): Output PDF path
-            angle (int): Rotation angle (90, 180, 270)
-            pages (list): Pages to rotate (None = all)
-            
-        Returns:
-            bool: Success status
-        """
+    def rotate_pdf(self, input_path, output_path, angle, pages=None):
+        """Rotate PDF pages"""
         try:
             doc = fitz.open(input_path)
             
@@ -110,52 +89,48 @@ class PDFHandler:
             
             doc.save(output_path)
             doc.close()
-            return True
+            return {'success': True, 'output_path': output_path}
         except Exception as e:
-            print(f"Error rotating PDF: {e}")
-            return False
+            return {'success': False, 'error': str(e)}
     
-    def crop_pdf(self, input_path, output_path, coordinates):
-        """
-        Crop PDF pages
-        
-        Args:
-            input_path (str): Input PDF path
-            output_path (str): Output PDF path
-            coordinates (list): List of [x0, y0, x1, y1] coordinates
-            
-        Returns:
-            bool: Success status
-        """
+    def compress_pdf(self, input_path, output_path, quality='medium'):
+        """Compress PDF file"""
         try:
+            original_size = os.path.getsize(input_path)
             doc = fitz.open(input_path)
             
-            for page in doc:
-                rect = fitz.Rect(coordinates)
-                page.set_cropbox(rect)
+            # Set compression parameters based on quality
+            if quality == 'low':
+                garbage = 4
+                deflate = True
+                clean = True
+            elif quality == 'high':
+                garbage = 1
+                deflate = False
+                clean = False
+            else:  # medium
+                garbage = 3
+                deflate = True
+                clean = True
             
-            doc.save(output_path)
+            doc.save(output_path, garbage=garbage, deflate=deflate, clean=clean)
             doc.close()
-            return True
+            
+            compressed_size = os.path.getsize(output_path)
+            reduction = round((1 - compressed_size / original_size) * 100, 2)
+            
+            return {
+                'success': True,
+                'output_path': output_path,
+                'original_size': original_size,
+                'compressed_size': compressed_size,
+                'reduction': f"{reduction}%"
+            }
         except Exception as e:
-            print(f"Error cropping PDF: {e}")
-            return False
+            return {'success': False, 'error': str(e)}
     
     def add_watermark(self, input_path, output_path, text, opacity=0.3, angle=45, color=(0.5, 0.5, 0.5)):
-        """
-        Add watermark to PDF
-        
-        Args:
-            input_path (str): Input PDF path
-            output_path (str): Output PDF path
-            text (str): Watermark text
-            opacity (float): Watermark opacity (0-1)
-            angle (int): Rotation angle
-            color (tuple): RGB color tuple
-            
-        Returns:
-            bool: Success status
-        """
+        """Add watermark to PDF"""
         try:
             doc = fitz.open(input_path)
             
@@ -165,7 +140,7 @@ class PDFHandler:
                 center = fitz.Point(rect.width / 2, rect.height / 2)
                 
                 # Create watermark with gray color based on opacity
-                gray_value = 1 - (opacity * 0.5)  # Lighter color for visibility
+                gray_value = 1 - (opacity * 0.5)
                 text_color = (gray_value, gray_value, gray_value)
                 
                 # Use TextWriter for rotated text
@@ -184,32 +159,20 @@ class PDFHandler:
             
             doc.save(output_path)
             doc.close()
-            return True
+            return {'success': True, 'output_path': output_path}
         except Exception as e:
-            print(f"Error adding watermark: {e}")
-            return False
+            return {'success': False, 'error': str(e)}
     
-    def add_page_numbers(self, input_path, output_path, format_str="{page}/{total}", position="bottom-right"):
-        """
-        Add page numbers to PDF
-        
-        Args:
-            input_path (str): Input PDF path
-            output_path (str): Output PDF path
-            format_str (str): Format string for page numbers
-            position (str): Position on page
-            
-        Returns:
-            bool: Success status
-        """
+    def add_page_numbers(self, input_path, output_path, position="bottom-center", start_number=1):
+        """Add page numbers to PDF"""
         try:
             doc = fitz.open(input_path)
             total_pages = len(doc)
             
             for i, page in enumerate(doc):
                 rect = page.rect
-                page_num = i + 1
-                text = format_str.replace("{page}", str(page_num)).replace("{total}", str(total_pages))
+                page_num = start_number + i
+                text = f"{page_num}"
                 
                 # Calculate position
                 if position == "bottom-right":
@@ -219,7 +182,7 @@ class PDFHandler:
                     x = 30
                     y = rect.height - 30
                 elif position == "bottom-center":
-                    x = rect.width / 2 - 20
+                    x = rect.width / 2 - 10
                     y = rect.height - 30
                 elif position == "top-right":
                     x = rect.width - 50
@@ -228,10 +191,10 @@ class PDFHandler:
                     x = 30
                     y = 30
                 elif position == "top-center":
-                    x = rect.width / 2 - 20
+                    x = rect.width / 2 - 10
                     y = 30
                 else:
-                    x = rect.width - 50
+                    x = rect.width / 2 - 10
                     y = rect.height - 30
                 
                 page.insert_text(
@@ -243,105 +206,36 @@ class PDFHandler:
             
             doc.save(output_path)
             doc.close()
-            return True
+            return {'success': True, 'output_path': output_path, 'page_count': total_pages}
         except Exception as e:
-            print(f"Error adding page numbers: {e}")
-            return False
+            return {'success': False, 'error': str(e)}
     
-    def remove_pages(self, input_path, output_path, pages_to_remove):
-        """
-        Remove pages from PDF
-        
-        Args:
-            input_path (str): Input PDF path
-            output_path (str): Output PDF path
-            pages_to_remove (list): List of page numbers to remove (1-indexed)
-            
-        Returns:
-            bool: Success status
-        """
-        try:
-            doc = fitz.open(input_path)
-            
-            # Convert to 0-indexed and sort in reverse order
-            pages_to_delete = sorted([p - 1 for p in pages_to_remove], reverse=True)
-            
-            for page_num in pages_to_delete:
-                if 0 <= page_num < len(doc):
-                    doc.delete_page(page_num)
-            
-            doc.save(output_path)
-            doc.close()
-            return True
-        except Exception as e:
-            print(f"Error removing pages: {e}")
-            return False
-    
-    def rearrange_pages(self, input_path, output_path, new_order):
-        """
-        Rearrange PDF pages
-        
-        Args:
-            input_path (str): Input PDF path
-            output_path (str): Output PDF path
-            new_order (list): New page order (1-indexed)
-            
-        Returns:
-            bool: Success status
-        """
-        try:
-            reader = PdfReader(input_path)
-            writer = PdfWriter()
-            
-            for page_num in new_order:
-                if 1 <= page_num <= len(reader.pages):
-                    writer.add_page(reader.pages[page_num - 1])
-            
-            with open(output_path, 'wb') as f:
-                writer.write(f)
-            
-            return True
-        except Exception as e:
-            print(f"Error rearranging pages: {e}")
-            return False
-    
-    def extract_text(self, input_path, use_ocr=False):
-        """
-        Extract text from PDF
-        
-        Args:
-            input_path (str): Input PDF path
-            use_ocr (bool): Use OCR for scanned documents
-            
-        Returns:
-            str: Extracted text
-        """
+    def extract_text(self, input_path, output_path):
+        """Extract text from PDF and save to file"""
         try:
             doc = fitz.open(input_path)
             text = ""
             
             for page in doc:
                 text += page.get_text()
-                text += "\n\n--- Page Break ---\n\n"
+                text += "\n\n"
             
             doc.close()
-            return text.strip()
+            text = text.strip()
+            
+            # Save to file
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(text)
+            
+            # Return preview
+            preview = text[:500] + "..." if len(text) > 500 else text
+            
+            return {'success': True, 'output_path': output_path, 'text_preview': preview}
         except Exception as e:
-            print(f"Error extracting text: {e}")
-            return ""
+            return {'success': False, 'error': str(e)}
     
     def extract_images(self, input_path, output_dir, format='jpg'):
-        """
-        Extract images from PDF
-        
-        Args:
-            input_path (str): Input PDF path
-            output_dir (str): Output directory for images
-            format (str): Output image format
-            
-        Returns:
-            list: List of extracted image paths
-        """
+        """Extract images from PDF"""
         try:
             doc = fitz.open(input_path)
             image_paths = []
@@ -366,210 +260,120 @@ class PDFHandler:
                     image_paths.append(image_path)
             
             doc.close()
-            return image_paths
-        except Exception as e:
-            print(f"Error extracting images: {e}")
-            return []
-    
-    def compress_pdf(self, input_path, output_path, quality='medium'):
-        """
-        Compress PDF file
-        
-        Args:
-            input_path (str): Input PDF path
-            output_path (str): Output PDF path
-            quality (str): Compression quality ('low', 'medium', 'high')
             
-        Returns:
-            bool: Success status
-        """
+            if image_count == 0:
+                return {'success': False, 'error': 'No images found in PDF'}
+            
+            return {'success': True, 'images': image_paths, 'image_count': image_count}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+    
+    def protect_pdf(self, input_path, output_path, password):
+        """Add password protection to PDF"""
         try:
             doc = fitz.open(input_path)
             
-            # Set compression parameters based on quality
-            if quality == 'low':
-                garbage = 4
-                deflate = True
-                clean = True
-            elif quality == 'high':
-                garbage = 1
-                deflate = False
-                clean = False
-            else:  # medium
-                garbage = 3
-                deflate = True
-                clean = True
-            
+            # Encrypt with password
             doc.save(
                 output_path,
-                garbage=garbage,
-                deflate=deflate,
-                clean=clean
+                encryption=fitz.PDF_ENCRYPT_AES_256,
+                owner_pw=password,
+                user_pw=password,
+                permissions=(
+                    fitz.PDF_PERM_PRINT |
+                    fitz.PDF_PERM_COPY |
+                    fitz.PDF_PERM_MODIFY
+                )
             )
             doc.close()
-            return True
+            return {'success': True, 'output_path': output_path}
         except Exception as e:
-            print(f"Error compressing PDF: {e}")
-            return False
-    
-    def protect_pdf(self, input_path, output_path, password, permissions=None):
-        """
-        Add password protection to PDF
-        
-        Args:
-            input_path (str): Input PDF path
-            output_path (str): Output PDF path
-            password (str): Password to set
-            permissions (dict): Permission settings
-            
-        Returns:
-            bool: Success status
-        """
-        try:
-            reader = PdfReader(input_path)
-            writer = PdfWriter()
-            
-            for page in reader.pages:
-                writer.add_page(page)
-            
-            writer.encrypt(password)
-            
-            with open(output_path, 'wb') as f:
-                writer.write(f)
-            
-            return True
-        except Exception as e:
-            print(f"Error protecting PDF: {e}")
-            return False
+            return {'success': False, 'error': str(e)}
     
     def unlock_pdf(self, input_path, output_path, password):
-        """
-        Remove password protection from PDF
-        
-        Args:
-            input_path (str): Input PDF path
-            output_path (str): Output PDF path
-            password (str): Password to unlock
-            
-        Returns:
-            bool: Success status
-        """
+        """Remove password protection from PDF"""
         try:
-            reader = PdfReader(input_path)
+            doc = fitz.open(input_path)
             
-            if reader.is_encrypted:
-                reader.decrypt(password)
+            if doc.is_encrypted:
+                if not doc.authenticate(password):
+                    return {'success': False, 'error': 'Invalid password'}
             
-            writer = PdfWriter()
-            for page in reader.pages:
-                writer.add_page(page)
-            
-            with open(output_path, 'wb') as f:
-                writer.write(f)
-            
-            return True
+            # Save without encryption
+            doc.save(output_path)
+            doc.close()
+            return {'success': True, 'output_path': output_path}
         except Exception as e:
-            print(f"Error unlocking PDF: {e}")
-            return False
+            return {'success': False, 'error': str(e)}
     
-    def redact_text(self, input_path, output_path, text_to_redact):
-        """
-        Redact (black out) specific text in PDF
-        
-        Args:
-            input_path (str): Input PDF path
-            output_path (str): Output PDF path
-            text_to_redact (str): Text to redact
-            
-        Returns:
-            bool: Success status
-        """
+    def crop_pdf(self, input_path, output_path, coordinates):
+        """Crop PDF pages"""
         try:
             doc = fitz.open(input_path)
             
             for page in doc:
-                # Search for the text
-                text_instances = page.search_for(text_to_redact)
-                
-                for inst in text_instances:
-                    # Add redaction annotation
-                    page.add_redact_annot(inst, fill=(0, 0, 0))
-                
-                # Apply redactions
-                page.apply_redactions()
+                rect = fitz.Rect(coordinates)
+                page.set_cropbox(rect)
             
             doc.save(output_path)
             doc.close()
-            return True
+            return {'success': True, 'output_path': output_path}
         except Exception as e:
-            print(f"Error redacting PDF: {e}")
-            return False
+            return {'success': False, 'error': str(e)}
     
-    def get_pdf_info(self, input_path):
-        """
-        Get PDF document information
-        
-        Args:
-            input_path (str): Input PDF path
-            
-        Returns:
-            dict: PDF information
-        """
+    def remove_pages(self, input_path, output_path, pages_to_remove):
+        """Remove pages from PDF"""
         try:
             doc = fitz.open(input_path)
-            metadata = doc.metadata
             
-            info = {
-                'title': metadata.get('title', ''),
-                'author': metadata.get('author', ''),
-                'subject': metadata.get('subject', ''),
-                'keywords': metadata.get('keywords', ''),
-                'creator': metadata.get('creator', ''),
-                'producer': metadata.get('producer', ''),
-                'creation_date': metadata.get('creationDate', ''),
-                'modification_date': metadata.get('modDate', ''),
-                'page_count': len(doc),
-                'file_size': os.path.getsize(input_path),
-                'is_encrypted': doc.is_encrypted,
-                'pages': []
-            }
+            # Convert to 0-indexed and sort in reverse order
+            pages_to_delete = sorted([p - 1 for p in pages_to_remove], reverse=True)
             
-            for i, page in enumerate(doc):
-                rect = page.rect
-                info['pages'].append({
-                    'page_number': i + 1,
-                    'width': rect.width,
-                    'height': rect.height,
-                    'rotation': page.rotation
-                })
+            for page_num in pages_to_delete:
+                if 0 <= page_num < len(doc):
+                    doc.delete_page(page_num)
             
+            doc.save(output_path)
             doc.close()
-            return info
+            return {'success': True, 'output_path': output_path}
         except Exception as e:
-            print(f"Error getting PDF info: {e}")
-            return None
+            return {'success': False, 'error': str(e)}
+    
+    def rearrange_pages(self, input_path, output_path, new_order):
+        """Rearrange PDF pages"""
+        try:
+            reader = PdfReader(input_path)
+            writer = PdfWriter()
+            
+            for page_num in new_order:
+                if 1 <= page_num <= len(reader.pages):
+                    writer.add_page(reader.pages[page_num - 1])
+            
+            with open(output_path, 'wb') as f:
+                writer.write(f)
+            
+            return {'success': True, 'output_path': output_path}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
 
 
-# ============================================================
-# Additional utility functions
-# ============================================================
-
+# Utility functions
 def validate_pdf(file_path):
-    """Validate if file is a valid PDF"""
+    """Check if a file is a valid PDF"""
     try:
         doc = fitz.open(file_path)
-        pages = len(doc)
+        is_valid = doc.page_count > 0
         doc.close()
-        return pages > 0
+        return is_valid
     except:
         return False
 
 
 def get_page_count(file_path):
-    """Get total page count of PDF"""
+    """Get the number of pages in a PDF"""
     try:
         doc = fitz.open(file_path)
-        count = len(doc)
+        count = doc.page_count
         doc.close()
         return count
     except:
