@@ -34,7 +34,7 @@ import {
 } from 'lucide-react';
 import './App.css';
 
-const API_URL = '/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://pdftools-iqsc.onrender.com/api';
 
 interface UploadedFile {
   file: File;
@@ -98,7 +98,7 @@ function App() {
   const [customFileName, setCustomFileName] = useState('');
   const [originalFileName, setOriginalFileName] = useState('');
   const [scrolled, setScrolled] = useState(false);
-  
+
   const heroRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -194,12 +194,12 @@ function App() {
 
     // Create new AbortController for this request
     abortControllerRef.current = new AbortController();
-    
+
     setIsProcessing(true);
     setProgress(0);
 
     const formData = new FormData();
-    
+
     if (selectedOperation.id === 'merge' || selectedOperation.id === 'image-to-pdf') {
       files.forEach(f => formData.append('files', f.file));
     } else {
@@ -265,8 +265,8 @@ function App() {
     }
   };
 
-  const filteredOperations = selectedCategory === 'all' 
-    ? operations 
+  const filteredOperations = selectedCategory === 'all'
+    ? operations
     : operations.filter(op => op.category === selectedCategory);
 
   const formatFileSize = (bytes: number) => {
@@ -279,15 +279,15 @@ function App() {
 
   const handleDownload = async () => {
     if (!downloadUrl) return;
-    
+
     try {
       const response = await fetch(downloadUrl);
       const blob = await response.blob();
-      
+
       // Get file extension from original filename
       const ext = originalFileName.split('.').pop() || 'pdf';
       const finalFileName = customFileName ? `${customFileName}.${ext}` : originalFileName;
-      
+
       // Create download link
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -297,7 +297,7 @@ function App() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      
+
       toast.success(`Downloaded: ${finalFileName}`, {
         icon: '📥',
         style: {
@@ -343,26 +343,26 @@ function App() {
       </div>
 
       {/* Header */}
-      <motion.header 
+      <motion.header
         className={`header ${scrolled ? 'header-scrolled' : ''}`}
         initial={{ y: -100 }}
         animate={{ y: 0 }}
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
       >
         <div className="header-inner">
-          <motion.div 
+          <motion.div
             className="logo"
             whileHover={{ scale: 1.02 }}
           >
             <span className="logo-text">pdfmaster</span>
           </motion.div>
-          
+
           <nav className="nav">
             <a href="#tools" className="nav-link">TOOLS</a>
             <a href="#features" className="nav-link">FEATURES</a>
           </nav>
 
-          <motion.button 
+          <motion.button
             className="btn-primary"
             whileHover={{ scale: 1.05, y: -2 }}
             whileTap={{ scale: 0.95 }}
@@ -374,13 +374,13 @@ function App() {
       </motion.header>
 
       {/* Hero Section */}
-      <motion.section 
+      <motion.section
         ref={heroRef}
         className="hero"
         style={{ opacity: heroOpacity, scale: heroScale }}
       >
         <div className="hero-content">
-          <motion.div 
+          <motion.div
             className="hero-badge"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -390,7 +390,7 @@ function App() {
             FREE & OPEN SOURCE
           </motion.div>
 
-          <motion.h1 
+          <motion.h1
             className="hero-title"
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
@@ -401,7 +401,7 @@ function App() {
             ACCELERATE.
           </motion.h1>
 
-          <motion.p 
+          <motion.p
             className="hero-subtitle"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
@@ -410,18 +410,18 @@ function App() {
             PDF TOOLS BUILT FOR SPEED. WIRED FOR SIMPLICITY.
           </motion.p>
 
-          <motion.p 
+          <motion.p
             className="hero-desc"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6, duration: 0.6 }}
           >
-            PDFMaster puts powerful PDF tools at your fingertips. Forget clunky software and 
-            online limits - this is PDF processing with a turbo boost. From merge to convert 
+            PDFMaster puts powerful PDF tools at your fingertips. Forget clunky software and
+            online limits - this is PDF processing with a turbo boost. From merge to convert
             in seconds, PDFMaster is your productivity powerhouse.
           </motion.p>
 
-          <motion.button 
+          <motion.button
             className="btn-hero"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
@@ -433,7 +433,7 @@ function App() {
             GO FROM FILES TO DONE <ArrowRight size={20} />
           </motion.button>
 
-          <motion.div 
+          <motion.div
             className="scroll-indicator"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -446,7 +446,7 @@ function App() {
 
         {/* Floating Elements */}
         <div className="hero-visual">
-          <motion.div 
+          <motion.div
             className="floating-card card-1"
             initial={{ opacity: 0, x: 100 }}
             animate={{ opacity: 1, x: 0 }}
@@ -455,7 +455,7 @@ function App() {
             <div className="card-icon"><Merge size={32} /></div>
             <span>Merge</span>
           </motion.div>
-          <motion.div 
+          <motion.div
             className="floating-card card-2"
             initial={{ opacity: 0, x: 100 }}
             animate={{ opacity: 1, x: 0 }}
@@ -464,7 +464,7 @@ function App() {
             <div className="card-icon"><Scissors size={32} /></div>
             <span>Split</span>
           </motion.div>
-          <motion.div 
+          <motion.div
             className="floating-card card-3"
             initial={{ opacity: 0, x: 100 }}
             animate={{ opacity: 1, x: 0 }}
@@ -473,7 +473,7 @@ function App() {
             <div className="card-icon"><Lock size={32} /></div>
             <span>Protect</span>
           </motion.div>
-          
+
           {/* Connecting Lines Animation */}
           <svg className="connection-lines" viewBox="0 0 300 200">
             <motion.path
@@ -494,7 +494,7 @@ function App() {
               animate={{ pathLength: 1 }}
               transition={{ delay: 1.4, duration: 1.5 }}
             />
-            <motion.circle cx="50" cy="100" r="12" fill="#FF6B4A" 
+            <motion.circle cx="50" cy="100" r="12" fill="#FF6B4A"
               initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 1.1 }} />
             <motion.circle cx="250" cy="100" r="12" fill="#FF6B4A"
               initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 1.6 }} />
@@ -506,7 +506,7 @@ function App() {
       <section id="features" className="features-section">
         <div className="features-grid">
           {features.map((feature, index) => (
-            <motion.div 
+            <motion.div
               key={index}
               className="feature-card"
               initial={{ opacity: 0, y: 40 }}
@@ -525,7 +525,7 @@ function App() {
 
       {/* Tools Section */}
       <section id="tools" className="tools-section">
-        <motion.div 
+        <motion.div
           className="section-header"
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -537,7 +537,7 @@ function App() {
         </motion.div>
 
         {/* Category Filter */}
-        <motion.div 
+        <motion.div
           className="category-filter"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -559,7 +559,7 @@ function App() {
         </motion.div>
 
         {/* Operations Grid */}
-        <motion.div 
+        <motion.div
           className="tools-grid"
           layout
         >
@@ -573,10 +573,10 @@ function App() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.8 }}
                 transition={{ delay: index * 0.05, duration: 0.3 }}
-                whileHover={{ 
-                  y: -12, 
+                whileHover={{
+                  y: -12,
                   scale: 1.02,
-                  transition: { duration: 0.2 } 
+                  transition: { duration: 0.2 }
                 }}
                 onClick={() => handleOperationClick(op)}
                 style={{ '--card-color': op.color } as React.CSSProperties}
@@ -598,14 +598,14 @@ function App() {
       {/* Success Modal */}
       <AnimatePresence>
         {showModal && (
-          <motion.div 
+          <motion.div
             className="modal-overlay"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setShowModal(false)}
           >
-            <motion.div 
+            <motion.div
               className="modal"
               initial={{ opacity: 0, scale: 0.8, y: 50 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -640,14 +640,14 @@ function App() {
       {/* Operation Modal - Popup when clicking on any operation */}
       <AnimatePresence>
         {showOperationModal && selectedOperation && (
-          <motion.div 
+          <motion.div
             className="modal-overlay operation-modal-overlay"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={closeOperationModal}
           >
-            <motion.div 
+            <motion.div
               className="operation-modal"
               initial={{ opacity: 0, scale: 0.9, y: 30 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -678,12 +678,12 @@ function App() {
                     {/* Dropzone */}
                     <div {...getRootProps()}>
                       <input {...getInputProps()} />
-                      <motion.div 
+                      <motion.div
                         className={`dropzone modal-dropzone ${isDragActive ? 'drag-active' : ''}`}
                         whileHover={{ scale: 1.01 }}
                         animate={isDragActive ? { scale: 1.02, borderColor: selectedOperation.color } : {}}
                       >
-                        <motion.div 
+                        <motion.div
                           className="dropzone-icon"
                           animate={isDragActive ? { y: -10, scale: 1.1 } : { y: 0, scale: 1 }}
                           style={{ color: selectedOperation.color }}
@@ -703,7 +703,7 @@ function App() {
                     {/* File List */}
                     <AnimatePresence>
                       {files.length > 0 && (
-                        <motion.div 
+                        <motion.div
                           className="file-list modal-file-list"
                           initial={{ opacity: 0, height: 0 }}
                           animate={{ opacity: 1, height: 'auto' }}
@@ -716,7 +716,7 @@ function App() {
                             </button>
                           </div>
                           {files.map((file, index) => (
-                            <motion.div 
+                            <motion.div
                               key={file.id}
                               className="file-item"
                               initial={{ opacity: 0, x: -20 }}
@@ -740,126 +740,126 @@ function App() {
 
                     {/* Extra Parameters */}
                     <AnimatePresence>
-                      {(selectedOperation.id === 'rotate' || selectedOperation.id === 'split' || 
+                      {(selectedOperation.id === 'rotate' || selectedOperation.id === 'split' ||
                         selectedOperation.id === 'watermark' || selectedOperation.id === 'protect' ||
                         selectedOperation.id === 'unlock' ||
                         selectedOperation.id === 'extract-text' || selectedOperation.id === 'extract-tables' ||
                         selectedOperation.id === 'pdf-to-jpg') && (
-                        <motion.div 
-                          className="params-section modal-params"
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          exit={{ opacity: 0, height: 0 }}
-                        >
-                          {selectedOperation.id === 'rotate' && (
-                            <div className="param-group">
-                              <label>Rotation Angle</label>
-                              <select 
-                                value={extraParams.angle || '90'}
-                                onChange={(e) => setExtraParams({...extraParams, angle: e.target.value})}
-                                className="param-select"
-                              >
-                                <option value="90">90° Clockwise</option>
-                                <option value="180">180°</option>
-                                <option value="270">270° (90° Counter-clockwise)</option>
-                              </select>
-                            </div>
-                          )}
-                          {selectedOperation.id === 'split' && (
-                            <div className="param-group">
-                              <label>Page Range (e.g., 1-3)</label>
-                              <input 
-                                type="text"
-                                value={extraParams.pages || ''}
-                                onChange={(e) => setExtraParams({...extraParams, pages: e.target.value})}
-                                placeholder="1-3 or 1,3,5"
-                                className="param-input"
-                              />
-                            </div>
-                          )}
-                          {selectedOperation.id === 'watermark' && (
-                            <div className="param-group">
-                              <label>Watermark Text</label>
-                              <input 
-                                type="text"
-                                value={extraParams.text || ''}
-                                onChange={(e) => setExtraParams({...extraParams, text: e.target.value})}
-                                placeholder="CONFIDENTIAL"
-                                className="param-input"
-                              />
-                            </div>
-                          )}
-                          {(selectedOperation.id === 'protect' || selectedOperation.id === 'unlock') && (
-                            <div className="param-group">
-                              <label>Password</label>
-                              <input 
-                                type="password"
-                                value={extraParams.password || ''}
-                                onChange={(e) => setExtraParams({...extraParams, password: e.target.value})}
-                                placeholder="Enter password"
-                                className="param-input"
-                              />
-                            </div>
-                          )}
-                          {selectedOperation.id === 'extract-text' && (
-                            <div className="param-group">
-                              <label>Output Format</label>
-                              <select 
-                                value={extraParams.format || 'txt'}
-                                onChange={(e) => setExtraParams({...extraParams, format: e.target.value})}
-                                className="param-select"
-                              >
-                                <option value="txt">Plain Text (.txt)</option>
-                                <option value="docx">Word Document (.docx)</option>
-                              </select>
-                            </div>
-                          )}
-                          {selectedOperation.id === 'extract-tables' && (
-                            <div className="param-group">
-                              <label>Output Format</label>
-                              <select 
-                                value={extraParams.format || 'txt'}
-                                onChange={(e) => setExtraParams({...extraParams, format: e.target.value})}
-                                className="param-select"
-                              >
-                                <option value="txt">Plain Text (.txt)</option>
-                                <option value="markdown">Markdown (.md)</option>
-                              </select>
-                            </div>
-                          )}
-                          {selectedOperation.id === 'pdf-to-jpg' && (
-                            <>
+                          <motion.div
+                            className="params-section modal-params"
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                          >
+                            {selectedOperation.id === 'rotate' && (
                               <div className="param-group">
-                                <label>Pages to Convert</label>
-                                <input 
+                                <label>Rotation Angle</label>
+                                <select
+                                  value={extraParams.angle || '90'}
+                                  onChange={(e) => setExtraParams({ ...extraParams, angle: e.target.value })}
+                                  className="param-select"
+                                >
+                                  <option value="90">90° Clockwise</option>
+                                  <option value="180">180°</option>
+                                  <option value="270">270° (90° Counter-clockwise)</option>
+                                </select>
+                              </div>
+                            )}
+                            {selectedOperation.id === 'split' && (
+                              <div className="param-group">
+                                <label>Page Range (e.g., 1-3)</label>
+                                <input
                                   type="text"
                                   value={extraParams.pages || ''}
-                                  onChange={(e) => setExtraParams({...extraParams, pages: e.target.value})}
-                                  placeholder="Leave empty for all, or 1-3, or 1,3,5"
+                                  onChange={(e) => setExtraParams({ ...extraParams, pages: e.target.value })}
+                                  placeholder="1-3 or 1,3,5"
                                   className="param-input"
                                 />
                               </div>
+                            )}
+                            {selectedOperation.id === 'watermark' && (
                               <div className="param-group">
-                                <label>Image Quality (DPI)</label>
-                                <select 
-                                  value={extraParams.dpi || '150'}
-                                  onChange={(e) => setExtraParams({...extraParams, dpi: e.target.value})}
+                                <label>Watermark Text</label>
+                                <input
+                                  type="text"
+                                  value={extraParams.text || ''}
+                                  onChange={(e) => setExtraParams({ ...extraParams, text: e.target.value })}
+                                  placeholder="CONFIDENTIAL"
+                                  className="param-input"
+                                />
+                              </div>
+                            )}
+                            {(selectedOperation.id === 'protect' || selectedOperation.id === 'unlock') && (
+                              <div className="param-group">
+                                <label>Password</label>
+                                <input
+                                  type="password"
+                                  value={extraParams.password || ''}
+                                  onChange={(e) => setExtraParams({ ...extraParams, password: e.target.value })}
+                                  placeholder="Enter password"
+                                  className="param-input"
+                                />
+                              </div>
+                            )}
+                            {selectedOperation.id === 'extract-text' && (
+                              <div className="param-group">
+                                <label>Output Format</label>
+                                <select
+                                  value={extraParams.format || 'txt'}
+                                  onChange={(e) => setExtraParams({ ...extraParams, format: e.target.value })}
                                   className="param-select"
                                 >
-                                  <option value="72">Low (72 DPI - Fast)</option>
-                                  <option value="150">Medium (150 DPI - Balanced)</option>
-                                  <option value="300">High (300 DPI - Best Quality)</option>
+                                  <option value="txt">Plain Text (.txt)</option>
+                                  <option value="docx">Word Document (.docx)</option>
                                 </select>
                               </div>
-                            </>
-                          )}
-                        </motion.div>
-                      )}
+                            )}
+                            {selectedOperation.id === 'extract-tables' && (
+                              <div className="param-group">
+                                <label>Output Format</label>
+                                <select
+                                  value={extraParams.format || 'txt'}
+                                  onChange={(e) => setExtraParams({ ...extraParams, format: e.target.value })}
+                                  className="param-select"
+                                >
+                                  <option value="txt">Plain Text (.txt)</option>
+                                  <option value="markdown">Markdown (.md)</option>
+                                </select>
+                              </div>
+                            )}
+                            {selectedOperation.id === 'pdf-to-jpg' && (
+                              <>
+                                <div className="param-group">
+                                  <label>Pages to Convert</label>
+                                  <input
+                                    type="text"
+                                    value={extraParams.pages || ''}
+                                    onChange={(e) => setExtraParams({ ...extraParams, pages: e.target.value })}
+                                    placeholder="Leave empty for all, or 1-3, or 1,3,5"
+                                    className="param-input"
+                                  />
+                                </div>
+                                <div className="param-group">
+                                  <label>Image Quality (DPI)</label>
+                                  <select
+                                    value={extraParams.dpi || '150'}
+                                    onChange={(e) => setExtraParams({ ...extraParams, dpi: e.target.value })}
+                                    className="param-select"
+                                  >
+                                    <option value="72">Low (72 DPI - Fast)</option>
+                                    <option value="150">Medium (150 DPI - Balanced)</option>
+                                    <option value="300">High (300 DPI - Best Quality)</option>
+                                  </select>
+                                </div>
+                              </>
+                            )}
+                          </motion.div>
+                        )}
                     </AnimatePresence>
                   </>
                 ) : (
                   /* Download Section - Shows after processing is complete */
-                  <motion.div 
+                  <motion.div
                     className="download-section"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -870,11 +870,11 @@ function App() {
                     </div>
                     <h3 className="success-title">Processing Complete!</h3>
                     <p className="success-subtitle">Your file is ready for download</p>
-                    
+
                     <div className="filename-input-group">
                       <label>FILE NAME</label>
                       <div className="filename-input-wrapper">
-                        <input 
+                        <input
                           type="text"
                           value={customFileName}
                           onChange={(e) => setCustomFileName(e.target.value)}
@@ -913,7 +913,7 @@ function App() {
                     disabled={isProcessing || files.length === 0}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    style={{ 
+                    style={{
                       background: isProcessing ? '#333' : selectedOperation.color,
                     }}
                   >
@@ -933,13 +933,13 @@ function App() {
                   {/* Progress Bar */}
                   <AnimatePresence>
                     {isProcessing && (
-                      <motion.div 
+                      <motion.div
                         className="progress-bar modal-progress"
                         initial={{ opacity: 0, scaleX: 0 }}
                         animate={{ opacity: 1, scaleX: 1 }}
                         exit={{ opacity: 0 }}
                       >
-                        <motion.div 
+                        <motion.div
                           className="progress-fill"
                           initial={{ width: 0 }}
                           animate={{ width: `${progress}%` }}
