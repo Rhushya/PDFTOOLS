@@ -92,6 +92,7 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [showModal, setShowModal] = useState(false);
+  const [showOperationModal, setShowOperationModal] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [extraParams, setExtraParams] = useState<Record<string, string>>({});
   const [scrolled, setScrolled] = useState(false);
@@ -145,7 +146,20 @@ function App() {
 
   const clearAllFiles = () => {
     setFiles([]);
+  };
+
+  const closeOperationModal = () => {
+    setShowOperationModal(false);
+    setFiles([]);
     setSelectedOperation(null);
+    setExtraParams({});
+  };
+
+  const handleOperationClick = (op: Operation) => {
+    setSelectedOperation(op);
+    setShowOperationModal(true);
+    setFiles([]);
+    setExtraParams({});
   };
 
   const processFiles = async () => {
@@ -251,7 +265,6 @@ function App() {
           <nav className="nav">
             <a href="#tools" className="nav-link">TOOLS</a>
             <a href="#features" className="nav-link">FEATURES</a>
-            <a href="#upload" className="nav-link">UPLOAD</a>
           </nav>
 
           <motion.button 
@@ -470,7 +483,7 @@ function App() {
                   scale: 1.02,
                   transition: { duration: 0.2 } 
                 }}
-                onClick={() => setSelectedOperation(op)}
+                onClick={() => handleOperationClick(op)}
                 style={{ '--card-color': op.color } as React.CSSProperties}
               >
                 <div className="tool-icon" style={{ backgroundColor: `${op.color}20`, color: op.color }}>
@@ -483,206 +496,6 @@ function App() {
                 </div>
               </motion.div>
             ))}
-          </AnimatePresence>
-        </motion.div>
-      </section>
-
-      {/* Upload Section */}
-      <section id="upload" className="upload-section">
-        <motion.div 
-          className="upload-container"
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-        >
-          <div className="upload-header">
-            <h2>READY TO PROCESS?</h2>
-            <p>Drop your files and select an operation</p>
-          </div>
-
-          {/* Selected Operation Badge */}
-          <AnimatePresence>
-            {selectedOperation && (
-              <motion.div 
-                className="selected-operation"
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                style={{ borderColor: selectedOperation.color }}
-              >
-                <div className="selected-icon" style={{ color: selectedOperation.color }}>
-                  {selectedOperation.icon}
-                </div>
-                <span>{selectedOperation.name}</span>
-                <button onClick={() => setSelectedOperation(null)} className="clear-selection">
-                  <X size={16} />
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Dropzone */}
-          <div {...getRootProps()}>
-            <input {...getInputProps()} />
-            <motion.div 
-              className={`dropzone ${isDragActive ? 'drag-active' : ''}`}
-              whileHover={{ scale: 1.01 }}
-              animate={isDragActive ? { scale: 1.02, borderColor: '#FF6B4A' } : {}}
-            >
-              <motion.div 
-                className="dropzone-icon"
-                animate={isDragActive ? { y: -10, scale: 1.1 } : { y: 0, scale: 1 }}
-              >
-                <Upload size={48} />
-              </motion.div>
-              <p className="dropzone-title">
-                {isDragActive ? 'Drop files here...' : 'Drag & drop files here'}
-              </p>
-              <p className="dropzone-subtitle">or click to browse</p>
-              <span className="dropzone-hint">PDF, JPG, PNG supported</span>
-            </motion.div>
-          </div>
-
-          {/* File List */}
-          <AnimatePresence>
-            {files.length > 0 && (
-              <motion.div 
-                className="file-list"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-              >
-                <div className="file-list-header">
-                  <span>{files.length} file(s) selected</span>
-                  <button onClick={clearAllFiles} className="clear-all">
-                    Clear all
-                  </button>
-                </div>
-                {files.map((file, index) => (
-                  <motion.div 
-                    key={file.id}
-                    className="file-item"
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    transition={{ delay: index * 0.05 }}
-                  >
-                    <FileText size={20} className="file-icon" />
-                    <div className="file-info">
-                      <span className="file-name">{file.file.name}</span>
-                      <span className="file-size">{formatFileSize(file.file.size)}</span>
-                    </div>
-                    <button onClick={() => removeFile(file.id)} className="remove-file">
-                      <X size={16} />
-                    </button>
-                  </motion.div>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Extra Parameters */}
-          <AnimatePresence>
-            {selectedOperation && (selectedOperation.id === 'rotate' || selectedOperation.id === 'split' || 
-              selectedOperation.id === 'watermark' || selectedOperation.id === 'protect') && (
-              <motion.div 
-                className="params-section"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-              >
-                {selectedOperation.id === 'rotate' && (
-                  <div className="param-group">
-                    <label>Rotation Angle</label>
-                    <select 
-                      value={extraParams.angle || '90'}
-                      onChange={(e) => setExtraParams({...extraParams, angle: e.target.value})}
-                      className="param-select"
-                    >
-                      <option value="90">90° Clockwise</option>
-                      <option value="180">180°</option>
-                      <option value="270">270° (90° Counter-clockwise)</option>
-                    </select>
-                  </div>
-                )}
-                {selectedOperation.id === 'split' && (
-                  <div className="param-group">
-                    <label>Page Range (e.g., 1-3)</label>
-                    <input 
-                      type="text"
-                      value={extraParams.pages || ''}
-                      onChange={(e) => setExtraParams({...extraParams, pages: e.target.value})}
-                      placeholder="1-3 or 1,3,5"
-                      className="param-input"
-                    />
-                  </div>
-                )}
-                {selectedOperation.id === 'watermark' && (
-                  <div className="param-group">
-                    <label>Watermark Text</label>
-                    <input 
-                      type="text"
-                      value={extraParams.text || ''}
-                      onChange={(e) => setExtraParams({...extraParams, text: e.target.value})}
-                      placeholder="CONFIDENTIAL"
-                      className="param-input"
-                    />
-                  </div>
-                )}
-                {selectedOperation.id === 'protect' && (
-                  <div className="param-group">
-                    <label>Password</label>
-                    <input 
-                      type="password"
-                      value={extraParams.password || ''}
-                      onChange={(e) => setExtraParams({...extraParams, password: e.target.value})}
-                      placeholder="Enter password"
-                      className="param-input"
-                    />
-                  </div>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Process Button */}
-          <motion.button
-            className={`btn-process ${isProcessing ? 'processing' : ''}`}
-            onClick={processFiles}
-            disabled={isProcessing || files.length === 0 || !selectedOperation}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-          >
-            {isProcessing ? (
-              <>
-                <Loader2 size={20} className="spin" />
-                Processing... {progress}%
-              </>
-            ) : (
-              <>
-                <Zap size={20} />
-                PROCESS FILES
-              </>
-            )}
-          </motion.button>
-
-          {/* Progress Bar */}
-          <AnimatePresence>
-            {isProcessing && (
-              <motion.div 
-                className="progress-bar"
-                initial={{ opacity: 0, scaleX: 0 }}
-                animate={{ opacity: 1, scaleX: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                <motion.div 
-                  className="progress-fill"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${progress}%` }}
-                />
-              </motion.div>
-            )}
           </AnimatePresence>
         </motion.div>
       </section>
@@ -724,6 +537,220 @@ function App() {
               <button className="modal-close" onClick={() => setShowModal(false)}>
                 Close
               </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Operation Modal - Popup when clicking on any operation */}
+      <AnimatePresence>
+        {showOperationModal && selectedOperation && (
+          <motion.div 
+            className="modal-overlay operation-modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={closeOperationModal}
+          >
+            <motion.div 
+              className="operation-modal"
+              initial={{ opacity: 0, scale: 0.9, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 30 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="operation-modal-header" style={{ borderColor: selectedOperation.color }}>
+                <div className="operation-modal-title">
+                  <div className="operation-modal-icon" style={{ backgroundColor: `${selectedOperation.color}20`, color: selectedOperation.color }}>
+                    {selectedOperation.icon}
+                  </div>
+                  <div>
+                    <h2>{selectedOperation.name}</h2>
+                    <p>{selectedOperation.description}</p>
+                  </div>
+                </div>
+                <button className="modal-close-btn" onClick={closeOperationModal}>
+                  <X size={24} />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="operation-modal-body">
+                {/* Dropzone */}
+                <div {...getRootProps()}>
+                  <input {...getInputProps()} />
+                  <motion.div 
+                    className={`dropzone modal-dropzone ${isDragActive ? 'drag-active' : ''}`}
+                    whileHover={{ scale: 1.01 }}
+                    animate={isDragActive ? { scale: 1.02, borderColor: selectedOperation.color } : {}}
+                  >
+                    <motion.div 
+                      className="dropzone-icon"
+                      animate={isDragActive ? { y: -10, scale: 1.1 } : { y: 0, scale: 1 }}
+                      style={{ color: selectedOperation.color }}
+                    >
+                      <Upload size={40} />
+                    </motion.div>
+                    <p className="dropzone-title">
+                      {isDragActive ? 'Drop files here...' : 'Drag & drop files here'}
+                    </p>
+                    <p className="dropzone-subtitle">or click to browse</p>
+                    <span className="dropzone-hint">
+                      {selectedOperation.id === 'image-to-pdf' ? 'JPG, PNG, GIF supported' : 'PDF files supported'}
+                    </span>
+                  </motion.div>
+                </div>
+
+                {/* File List */}
+                <AnimatePresence>
+                  {files.length > 0 && (
+                    <motion.div 
+                      className="file-list modal-file-list"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                    >
+                      <div className="file-list-header">
+                        <span>{files.length} file(s) selected</span>
+                        <button onClick={clearAllFiles} className="clear-all">
+                          Clear all
+                        </button>
+                      </div>
+                      {files.map((file, index) => (
+                        <motion.div 
+                          key={file.id}
+                          className="file-item"
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: 20 }}
+                          transition={{ delay: index * 0.05 }}
+                        >
+                          <FileText size={20} className="file-icon" />
+                          <div className="file-info">
+                            <span className="file-name">{file.file.name}</span>
+                            <span className="file-size">{formatFileSize(file.file.size)}</span>
+                          </div>
+                          <button onClick={() => removeFile(file.id)} className="remove-file">
+                            <X size={16} />
+                          </button>
+                        </motion.div>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Extra Parameters */}
+                <AnimatePresence>
+                  {(selectedOperation.id === 'rotate' || selectedOperation.id === 'split' || 
+                    selectedOperation.id === 'watermark' || selectedOperation.id === 'protect' ||
+                    selectedOperation.id === 'unlock') && (
+                    <motion.div 
+                      className="params-section modal-params"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                    >
+                      {selectedOperation.id === 'rotate' && (
+                        <div className="param-group">
+                          <label>Rotation Angle</label>
+                          <select 
+                            value={extraParams.angle || '90'}
+                            onChange={(e) => setExtraParams({...extraParams, angle: e.target.value})}
+                            className="param-select"
+                          >
+                            <option value="90">90° Clockwise</option>
+                            <option value="180">180°</option>
+                            <option value="270">270° (90° Counter-clockwise)</option>
+                          </select>
+                        </div>
+                      )}
+                      {selectedOperation.id === 'split' && (
+                        <div className="param-group">
+                          <label>Page Range (e.g., 1-3)</label>
+                          <input 
+                            type="text"
+                            value={extraParams.pages || ''}
+                            onChange={(e) => setExtraParams({...extraParams, pages: e.target.value})}
+                            placeholder="1-3 or 1,3,5"
+                            className="param-input"
+                          />
+                        </div>
+                      )}
+                      {selectedOperation.id === 'watermark' && (
+                        <div className="param-group">
+                          <label>Watermark Text</label>
+                          <input 
+                            type="text"
+                            value={extraParams.text || ''}
+                            onChange={(e) => setExtraParams({...extraParams, text: e.target.value})}
+                            placeholder="CONFIDENTIAL"
+                            className="param-input"
+                          />
+                        </div>
+                      )}
+                      {(selectedOperation.id === 'protect' || selectedOperation.id === 'unlock') && (
+                        <div className="param-group">
+                          <label>Password</label>
+                          <input 
+                            type="password"
+                            value={extraParams.password || ''}
+                            onChange={(e) => setExtraParams({...extraParams, password: e.target.value})}
+                            placeholder="Enter password"
+                            className="param-input"
+                          />
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="operation-modal-footer">
+                <motion.button
+                  className={`btn-process modal-process-btn ${isProcessing ? 'processing' : ''}`}
+                  onClick={processFiles}
+                  disabled={isProcessing || files.length === 0}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  style={{ 
+                    background: isProcessing ? '#333' : selectedOperation.color,
+                  }}
+                >
+                  {isProcessing ? (
+                    <>
+                      <Loader2 size={20} className="spin" />
+                      Processing... {progress}%
+                    </>
+                  ) : (
+                    <>
+                      <Zap size={20} />
+                      PROCESS {files.length > 0 ? `${files.length} FILE${files.length > 1 ? 'S' : ''}` : 'FILES'}
+                    </>
+                  )}
+                </motion.button>
+
+                {/* Progress Bar */}
+                <AnimatePresence>
+                  {isProcessing && (
+                    <motion.div 
+                      className="progress-bar modal-progress"
+                      initial={{ opacity: 0, scaleX: 0 }}
+                      animate={{ opacity: 1, scaleX: 1 }}
+                      exit={{ opacity: 0 }}
+                    >
+                      <motion.div 
+                        className="progress-fill"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${progress}%` }}
+                        style={{ background: selectedOperation.color }}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </motion.div>
           </motion.div>
         )}
