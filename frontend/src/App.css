@@ -1558,6 +1558,57 @@ body {
   letter-spacing: 0.05em;
 }
 
+/* Footer Author Section */
+.footer-author {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 0;
+  text-align: center;
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.footer-author .author-name {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  color: var(--text-light);
+  margin-bottom: 0.5rem;
+}
+
+.footer-author .author-name strong {
+  color: var(--primary);
+}
+
+.footer-author .author-location {
+  font-size: 0.9rem;
+  color: var(--text-muted-light);
+  margin-bottom: 1rem;
+}
+
+.footer-author .author-links {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.footer-author .author-links a {
+  color: var(--text-muted-light);
+  text-decoration: none;
+  font-size: 0.85rem;
+  transition: color var(--transition-fast);
+}
+
+.footer-author .author-links a:hover {
+  color: var(--primary);
+}
+
+.footer-author .author-links .divider {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
 /* ============================================
    Responsive Design
    ============================================ */
