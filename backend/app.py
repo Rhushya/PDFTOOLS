@@ -1,8 +1,9 @@
 # Backend Flask Application - Main Application File
 # File: backend/app.py
-# Uses temporary cache storage that auto-cleans on shutdown
+# Uses temporary cache storage with aggressive cleanup for free tier hosting
+# Features: Auto-cleanup after download, periodic cleanup, session-based cleanup
 
-from flask import Flask, request, jsonify, send_file, send_from_directory
+from flask import Flask, request, jsonify, send_file, send_from_directory, after_this_request
 from flask_cors import CORS
 import os
 import tempfile
@@ -16,6 +17,8 @@ from datetime import datetime
 import json
 import zipfile
 import shutil
+import threading
+import time
 
 # Load environment variables
 load_dotenv()
@@ -81,6 +84,148 @@ def signal_handler(signum, frame):
 # Register signal handlers for graceful shutdown
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
+
+# ============================================================================
+# AGGRESSIVE CACHE CLEANUP SYSTEM (For Free Tier Hosting)
+# ============================================================================
+
+# Cache configuration - adjust these for your free tier limits
+CACHE_MAX_AGE_SECONDS = int(os.getenv('CACHE_MAX_AGE_SECONDS', 300))  # 5 minutes default
+CACHE_CLEANUP_INTERVAL = int(os.getenv('CACHE_CLEANUP_INTERVAL', 120))  # 2 minutes default
+CACHE_MAX_SIZE_MB = int(os.getenv('CACHE_MAX_SIZE_MB', 100))  # 100MB max cache size
+
+def get_folder_size(folder_path):
+    """Get total size of a folder in bytes"""
+    total_size = 0
+    try:
+        for dirpath, dirnames, filenames in os.walk(folder_path):
+            for filename in filenames:
+                filepath = os.path.join(dirpath, filename)
+                try:
+                    total_size += os.path.getsize(filepath)
+                except (OSError, FileNotFoundError):
+                    pass
+    except Exception:
+        pass
+    return total_size
+
+def get_cache_size():
+    """Get current cache size in MB"""
+    total = get_folder_size(UPLOAD_FOLDER) + get_folder_size(OUTPUT_FOLDER) + get_folder_size(TEMP_FOLDER)
+    return round(total / (1024 * 1024), 2)
+
+def cleanup_old_files(max_age_seconds=None):
+    """Remove files older than max_age_seconds"""
+    if max_age_seconds is None:
+        max_age_seconds = CACHE_MAX_AGE_SECONDS
+    
+    current_time = time.time()
+    files_removed = 0
+    bytes_freed = 0
+    
+    for folder in [UPLOAD_FOLDER, OUTPUT_FOLDER, TEMP_FOLDER]:
+        if not os.path.exists(folder):
+            continue
+        
+        for item in os.listdir(folder):
+            item_path = os.path.join(folder, item)
+            try:
+                # Get file/folder modification time
+                mtime = os.path.getmtime(item_path)
+                age = current_time - mtime
+                
+                if age > max_age_seconds:
+                    if os.path.isfile(item_path):
+                        size = os.path.getsize(item_path)
+                        os.remove(item_path)
+                        files_removed += 1
+                        bytes_freed += size
+                    elif os.path.isdir(item_path):
+                        size = get_folder_size(item_path)
+                        shutil.rmtree(item_path)
+                        files_removed += 1
+                        bytes_freed += size
+            except (OSError, FileNotFoundError) as e:
+                # File may have been deleted by another process
+                pass
+    
+    return files_removed, round(bytes_freed / (1024 * 1024), 2)
+
+def cleanup_specific_file(filepath):
+    """Immediately cleanup a specific file or directory"""
+    try:
+        if os.path.isfile(filepath):
+            os.remove(filepath)
+            return True
+        elif os.path.isdir(filepath):
+            shutil.rmtree(filepath)
+            return True
+    except Exception as e:
+        print(f"⚠️ Could not cleanup {filepath}: {e}")
+    return False
+
+def cleanup_by_file_id(file_id):
+    """Cleanup all files associated with a file ID"""
+    cleaned = 0
+    for folder in [UPLOAD_FOLDER, OUTPUT_FOLDER, TEMP_FOLDER]:
+        if not os.path.exists(folder):
+            continue
+        for item in os.listdir(folder):
+            if file_id in item:
+                item_path = os.path.join(folder, item)
+                if cleanup_specific_file(item_path):
+                    cleaned += 1
+    return cleaned
+
+def force_cleanup_all():
+    """Emergency cleanup - remove ALL cached files"""
+    files_removed = 0
+    for folder in [UPLOAD_FOLDER, OUTPUT_FOLDER, TEMP_FOLDER]:
+        if os.path.exists(folder):
+            for item in os.listdir(folder):
+                item_path = os.path.join(folder, item)
+                try:
+                    if os.path.isfile(item_path):
+                        os.remove(item_path)
+                    elif os.path.isdir(item_path):
+                        shutil.rmtree(item_path)
+                    files_removed += 1
+                except Exception:
+                    pass
+    return files_removed
+
+# Background cleanup thread
+cleanup_thread_running = True
+
+def periodic_cleanup():
+    """Background thread that periodically cleans old files"""
+    global cleanup_thread_running
+    while cleanup_thread_running:
+        try:
+            # Wait for the cleanup interval
+            time.sleep(CACHE_CLEANUP_INTERVAL)
+            
+            # Perform cleanup
+            files_removed, mb_freed = cleanup_old_files()
+            cache_size = get_cache_size()
+            
+            if files_removed > 0:
+                print(f"🧹 Auto-cleanup: Removed {files_removed} old files, freed {mb_freed}MB. Current cache: {cache_size}MB")
+            
+            # If cache is still too large, force cleanup older files
+            if cache_size > CACHE_MAX_SIZE_MB:
+                print(f"⚠️ Cache size ({cache_size}MB) exceeds limit ({CACHE_MAX_SIZE_MB}MB). Running aggressive cleanup...")
+                # Cleanup files older than 1 minute
+                files_removed, mb_freed = cleanup_old_files(max_age_seconds=60)
+                print(f"🧹 Aggressive cleanup: Removed {files_removed} files, freed {mb_freed}MB")
+                
+        except Exception as e:
+            print(f"⚠️ Cleanup thread error: {e}")
+
+# Start background cleanup thread
+cleanup_thread = threading.Thread(target=periodic_cleanup, daemon=True)
+cleanup_thread.start()
+print(f"🧹 Background cleanup thread started (interval: {CACHE_CLEANUP_INTERVAL}s, max age: {CACHE_MAX_AGE_SECONDS}s)")
 
 # Import utility modules
 try:
@@ -187,14 +332,63 @@ def status():
     # Count files in cache
     upload_count = len(os.listdir(UPLOAD_FOLDER)) if os.path.exists(UPLOAD_FOLDER) else 0
     output_count = len(os.listdir(OUTPUT_FOLDER)) if os.path.exists(OUTPUT_FOLDER) else 0
+    temp_count = len(os.listdir(TEMP_FOLDER)) if os.path.exists(TEMP_FOLDER) else 0
+    cache_size = get_cache_size()
     
     return success_response('API is operational', {
         'version': '1.0.0',
-        'cache_mode': 'temporary',
+        'cache_mode': 'temporary_with_auto_cleanup',
         'cached_uploads': upload_count,
         'cached_outputs': output_count,
+        'cached_temp': temp_count,
+        'cache_size_mb': cache_size,
+        'cache_max_size_mb': CACHE_MAX_SIZE_MB,
+        'cache_max_age_seconds': CACHE_MAX_AGE_SECONDS,
+        'cleanup_interval_seconds': CACHE_CLEANUP_INTERVAL,
         'timestamp': datetime.now().isoformat()
     })
+
+@app.route('/api/cache/cleanup', methods=['POST'])
+def manual_cache_cleanup():
+    """Manually trigger cache cleanup - removes files older than specified age"""
+    try:
+        max_age = request.json.get('max_age_seconds', CACHE_MAX_AGE_SECONDS) if request.json else CACHE_MAX_AGE_SECONDS
+        files_removed, mb_freed = cleanup_old_files(max_age_seconds=max_age)
+        cache_size = get_cache_size()
+        
+        return success_response('Cache cleanup completed', {
+            'files_removed': files_removed,
+            'mb_freed': mb_freed,
+            'current_cache_size_mb': cache_size
+        })
+    except Exception as e:
+        return error_response('Cache cleanup failed', error=e, status=500)
+
+@app.route('/api/cache/clear', methods=['POST'])
+def clear_all_cache():
+    """Emergency endpoint - clear ALL cached files immediately"""
+    try:
+        files_removed = force_cleanup_all()
+        
+        return success_response('All cache cleared', {
+            'files_removed': files_removed,
+            'current_cache_size_mb': get_cache_size()
+        })
+    except Exception as e:
+        return error_response('Cache clear failed', error=e, status=500)
+
+@app.route('/api/cache/cleanup/<file_id>', methods=['DELETE'])
+def cleanup_file(file_id):
+    """Cleanup specific file by ID - call this after download completes"""
+    try:
+        cleaned = cleanup_by_file_id(file_id)
+        
+        return success_response(f'Cleaned up files for ID: {file_id}', {
+            'file_id': file_id,
+            'files_cleaned': cleaned
+        })
+    except Exception as e:
+        return error_response('Cleanup failed', error=e, status=500)
 
 def get_all_endpoints():
     """Get list of all available endpoints"""
@@ -750,7 +944,7 @@ def image_to_pdf():
         return error_response('Error converting images to PDF', error=e, status=500)
 
 # ============================================================================
-# DOWNLOAD ENDPOINTS
+# DOWNLOAD ENDPOINTS (with automatic cleanup after download)
 # ============================================================================
 
 @app.route('/download/<path:filename>', methods=['GET'])
@@ -759,6 +953,26 @@ def download_file(filename):
         # Check in outputs folder first
         output_path = os.path.join(app.config['OUTPUT_FOLDER'], filename)
         if os.path.exists(output_path):
+            # Schedule cleanup after the response is sent
+            @after_this_request
+            def cleanup_after_download(response):
+                try:
+                    # Small delay to ensure file is fully sent
+                    def delayed_cleanup():
+                        time.sleep(2)  # Wait 2 seconds after download
+                        cleanup_specific_file(output_path)
+                        # Also try to cleanup related upload files
+                        # Extract file_id from filename (format: uuid_operation.ext)
+                        if '_' in filename:
+                            file_id = filename.split('_')[0]
+                            cleanup_by_file_id(file_id)
+                    
+                    # Run cleanup in background thread
+                    threading.Thread(target=delayed_cleanup, daemon=True).start()
+                except Exception as e:
+                    print(f"⚠️ Post-download cleanup error: {e}")
+                return response
+            
             return send_file(output_path, as_attachment=True)
         
         # Check if it's a directory path
@@ -767,6 +981,18 @@ def download_file(filename):
             dir_path = os.path.join(app.config['OUTPUT_FOLDER'], parts[0])
             file_path = os.path.join(dir_path, parts[1])
             if os.path.exists(file_path):
+                # Schedule cleanup of the entire directory after download
+                @after_this_request
+                def cleanup_dir_after_download(response):
+                    try:
+                        def delayed_cleanup():
+                            time.sleep(2)
+                            cleanup_specific_file(dir_path)
+                        threading.Thread(target=delayed_cleanup, daemon=True).start()
+                    except Exception:
+                        pass
+                    return response
+                
                 return send_file(file_path, as_attachment=True)
         
         return error_response('File not found', status=404)
@@ -778,6 +1004,19 @@ def download_zip(file_id):
     try:
         zip_path = os.path.join(app.config['TEMP_FOLDER'], f"{file_id}.zip")
         if os.path.exists(zip_path):
+            # Schedule cleanup after download
+            @after_this_request
+            def cleanup_zip_after_download(response):
+                try:
+                    def delayed_cleanup():
+                        time.sleep(2)
+                        cleanup_specific_file(zip_path)
+                        cleanup_by_file_id(file_id)
+                    threading.Thread(target=delayed_cleanup, daemon=True).start()
+                except Exception:
+                    pass
+                return response
+            
             return send_file(zip_path, as_attachment=True, download_name=f"{file_id}.zip")
         return error_response('File not found', status=404)
     except Exception as e:
