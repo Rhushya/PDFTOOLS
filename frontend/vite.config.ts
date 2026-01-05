@@ -21,5 +21,40 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    // Optimize for production
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+      },
+    },
+    // Code splitting for better caching
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Vendor chunks for better caching
+          'react-vendor': ['react', 'react-dom'],
+          'framer': ['framer-motion'],
+          'icons': ['lucide-react'],
+        },
+        // Optimize chunk file names
+        chunkFileNames: 'assets/js/[name]-[hash].js',
+        entryFileNames: 'assets/js/[name]-[hash].js',
+        assetFileNames: 'assets/[ext]/[name]-[hash].[ext]',
+      },
+    },
+    // Target modern browsers for smaller bundles
+    target: 'es2020',
+    // Enable CSS code splitting
+    cssCodeSplit: true,
+    // Increase chunk size warning limit (framer-motion is large)
+    chunkSizeWarningLimit: 600,
+    // Source maps for debugging (disable in production for smaller files)
+    sourcemap: false,
+  },
+  // Optimize dependencies
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'framer-motion', 'lucide-react', 'axios', 'react-dropzone'],
   },
 })
