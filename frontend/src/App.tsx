@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, useMemo, memo, lazy, Suspense } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
 import { Toaster, toast } from 'react-hot-toast';
@@ -30,26 +30,12 @@ import {
   Github,
   Twitter,
   Linkedin,
-  Mail,
-  MapPin,
-  Phone
+  Mail
 } from 'lucide-react';
 import './App.css';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://pdftools-iqsc.onrender.com';
 const API_URL = `${BACKEND_URL}/api`;
-
-// Check if user prefers reduced motion
-const prefersReducedMotion = typeof window !== 'undefined'
-  ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  : false;
-
-// Optimized animation variants (disabled for reduced motion)
-const fadeInUp = prefersReducedMotion ? {} : {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -20 }
-};
 
 interface UploadedFile {
   file: File;
@@ -57,85 +43,51 @@ interface UploadedFile {
   preview?: string;
 }
 
-interface OperationData {
+interface Operation {
   id: string;
   name: string;
-  iconName: string;
+  icon: React.ReactNode;
   endpoint: string;
   description: string;
   category: string;
   color: string;
 }
 
-// Static data moved outside component to prevent recreation on each render
-const operationsData: OperationData[] = [
-  { id: 'merge', name: 'Merge PDFs', iconName: 'Merge', endpoint: '/pdf/merge', description: 'Combine multiple PDF files into a single document', category: 'organize', color: '#FF6B4A' },
-  { id: 'split', name: 'Split PDF', iconName: 'Scissors', endpoint: '/pdf/split', description: 'Extract specific pages or split into multiple files', category: 'organize', color: '#FF6B4A' },
-  { id: 'rotate', name: 'Rotate Pages', iconName: 'RotateCw', endpoint: '/pdf/rotate', description: 'Rotate PDF pages to any angle you need', category: 'organize', color: '#FF6B4A' },
-  { id: 'watermark', name: 'Add Watermark', iconName: 'Droplets', endpoint: '/pdf/watermark', description: 'Add custom text watermarks to your PDFs', category: 'enhance', color: '#FFE66D' },
-  { id: 'page-numbers', name: 'Page Numbers', iconName: 'Hash', endpoint: '/pdf/page-numbers', description: 'Automatically add page numbers to documents', category: 'enhance', color: '#FFE66D' },
-  { id: 'extract-text', name: 'Extract Text', iconName: 'FileOutput', endpoint: '/pdf/extract-text', description: 'Extract text as .txt or Word document', category: 'extract', color: '#95E1D3' },
-  { id: 'extract-images', name: 'Extract Images', iconName: 'Image', endpoint: '/pdf/extract-images', description: 'Extract all embedded images as ZIP', category: 'extract', color: '#95E1D3' },
-  { id: 'extract-tables', name: 'Extract Tables', iconName: 'FileText', endpoint: '/pdf/extract-tables', description: 'Extract tables as text or markdown', category: 'extract', color: '#95E1D3' },
-  { id: 'image-to-pdf', name: 'Image to PDF', iconName: 'FileImage', endpoint: '/convert/image-to-pdf', description: 'Convert images into PDF documents', category: 'convert', color: '#DDA0DD' },
-  { id: 'pdf-to-jpg', name: 'PDF to JPG', iconName: 'FileType', endpoint: '/convert/pdf-to-jpg', description: 'Convert PDF pages to JPG images', category: 'convert', color: '#DDA0DD' },
-  { id: 'pdf-to-word', name: 'PDF to Word', iconName: 'FileText', endpoint: '/convert/pdf-to-word', description: 'Convert PDF to Word document (.docx)', category: 'convert', color: '#DDA0DD' },
-  { id: 'protect', name: 'Protect PDF', iconName: 'Lock', endpoint: '/security/protect', description: 'Secure your PDFs with password protection', category: 'security', color: '#F38181' },
-  { id: 'unlock', name: 'Unlock PDF', iconName: 'Unlock', endpoint: '/security/unlock', description: 'Remove password protection from PDFs', category: 'security', color: '#F38181' },
+const operations: Operation[] = [
+  { id: 'merge', name: 'Merge PDFs', icon: <Merge size={28} />, endpoint: '/pdf/merge', description: 'Combine multiple PDF files into a single document', category: 'organize', color: '#FF6B4A' },
+  { id: 'split', name: 'Split PDF', icon: <Scissors size={28} />, endpoint: '/pdf/split', description: 'Extract specific pages or split into multiple files', category: 'organize', color: '#FF6B4A' },
+  { id: 'rotate', name: 'Rotate Pages', icon: <RotateCw size={28} />, endpoint: '/pdf/rotate', description: 'Rotate PDF pages to any angle you need', category: 'organize', color: '#FF6B4A' },
+  { id: 'watermark', name: 'Add Watermark', icon: <Droplets size={28} />, endpoint: '/pdf/watermark', description: 'Add custom text watermarks to your PDFs', category: 'enhance', color: '#FFE66D' },
+  { id: 'page-numbers', name: 'Page Numbers', icon: <Hash size={28} />, endpoint: '/pdf/page-numbers', description: 'Automatically add page numbers to documents', category: 'enhance', color: '#FFE66D' },
+  { id: 'extract-text', name: 'Extract Text', icon: <FileOutput size={28} />, endpoint: '/pdf/extract-text', description: 'Extract text as .txt or Word document', category: 'extract', color: '#95E1D3' },
+  { id: 'extract-images', name: 'Extract Images', icon: <Image size={28} />, endpoint: '/pdf/extract-images', description: 'Extract all embedded images as ZIP', category: 'extract', color: '#95E1D3' },
+  { id: 'extract-tables', name: 'Extract Tables', icon: <FileText size={28} />, endpoint: '/pdf/extract-tables', description: 'Extract tables as text or markdown', category: 'extract', color: '#95E1D3' },
+  { id: 'image-to-pdf', name: 'Image to PDF', icon: <FileImage size={28} />, endpoint: '/convert/image-to-pdf', description: 'Convert images into PDF documents', category: 'convert', color: '#DDA0DD' },
+  { id: 'pdf-to-jpg', name: 'PDF to JPG', icon: <FileType size={28} />, endpoint: '/convert/pdf-to-jpg', description: 'Convert PDF pages to JPG images', category: 'convert', color: '#DDA0DD' },
+  { id: 'pdf-to-word', name: 'PDF to Word', icon: <FileText size={28} />, endpoint: '/convert/pdf-to-word', description: 'Convert PDF to Word document (.docx)', category: 'convert', color: '#DDA0DD' },
+  { id: 'protect', name: 'Protect PDF', icon: <Lock size={28} />, endpoint: '/security/protect', description: 'Secure your PDFs with password protection', category: 'security', color: '#F38181' },
+  { id: 'unlock', name: 'Unlock PDF', icon: <Unlock size={28} />, endpoint: '/security/unlock', description: 'Remove password protection from PDFs', category: 'security', color: '#F38181' },
 ];
 
-const categoriesData = [
-  { id: 'all', name: 'ALL TOOLS', iconName: 'Sparkles' },
-  { id: 'organize', name: 'ORGANIZE', iconName: 'FileText' },
-  { id: 'convert', name: 'CONVERT', iconName: 'RefreshCw' },
-  { id: 'enhance', name: 'ENHANCE', iconName: 'Droplets' },
-  { id: 'extract', name: 'EXTRACT', iconName: 'FileOutput' },
-  { id: 'security', name: 'SECURITY', iconName: 'Shield' },
+const categories = [
+  { id: 'all', name: 'ALL TOOLS', icon: <Sparkles size={16} /> },
+  { id: 'organize', name: 'ORGANIZE', icon: <FileText size={16} /> },
+  { id: 'convert', name: 'CONVERT', icon: <RefreshCw size={16} /> },
+  { id: 'enhance', name: 'ENHANCE', icon: <Droplets size={16} /> },
+  { id: 'extract', name: 'EXTRACT', icon: <FileOutput size={16} /> },
+  { id: 'security', name: 'SECURITY', icon: <Shield size={16} /> },
 ];
 
-const featuresData = [
-  { iconName: 'Zap', title: 'LIGHTNING FAST', desc: 'Process PDFs in seconds with optimized algorithms' },
-  { iconName: 'Shield', title: 'FULLY SECURE', desc: 'All processing happens locally on your machine' },
-  { iconName: 'Sparkles', title: 'NO LIMITS', desc: 'No file size restrictions or daily limits' },
-  { iconName: 'RefreshCw', title: 'ALWAYS FREE', desc: 'All tools are completely free to use' },
+const features = [
+  { icon: <Zap size={24} />, title: 'LIGHTNING FAST', desc: 'Process PDFs in seconds with optimized algorithms' },
+  { icon: <Shield size={24} />, title: 'FULLY SECURE', desc: 'All processing happens locally on your machine' },
+  { icon: <Sparkles size={24} />, title: 'NO LIMITS', desc: 'No file size restrictions or daily limits' },
+  { icon: <RefreshCw size={24} />, title: 'ALWAYS FREE', desc: 'All tools are completely free to use' },
 ];
-
-// Icon mapping for dynamic rendering
-const iconMap: Record<string, React.ComponentType<{ size?: number }>> = {
-  Merge, Scissors, RotateCw, Droplets, Hash, FileOutput, Image, Lock, Unlock,
-  FileImage, FileType, FileText, Sparkles, Shield, Zap, RefreshCw
-};
-
-// Memoized helper to get icon component
-const getIcon = (iconName: string, size: number = 28) => {
-  const IconComponent = iconMap[iconName];
-  return IconComponent ? <IconComponent size={size} /> : null;
-};
-
-// Throttle utility for scroll events
-const throttle = <T extends (...args: unknown[]) => void>(func: T, limit: number): T => {
-  let inThrottle: boolean;
-  return ((...args: unknown[]) => {
-    if (!inThrottle) {
-      func(...args);
-      inThrottle = true;
-      setTimeout(() => inThrottle = false, limit);
-    }
-  }) as T;
-};
-
-// Format file size utility (memoizable)
-const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-};
 
 function App() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
-  const [selectedOperation, setSelectedOperation] = useState<OperationData | null>(null);
+  const [selectedOperation, setSelectedOperation] = useState<Operation | null>(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -152,30 +104,26 @@ function App() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { scrollYProgress } = useScroll();
+  const heroOpacity = useTransform(scrollYProgress, [0, 0.3], [1, 0]);
+  const heroScale = useTransform(scrollYProgress, [0, 0.3], [1, 0.95]);
 
-  // Only use transforms if reduced motion is not preferred
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.3], [1, prefersReducedMotion ? 1 : 0]);
-  const heroScale = useTransform(scrollYProgress, [0, 0.3], [1, prefersReducedMotion ? 1 : 0.95]);
-
-  // Memoize filtered operations to avoid recalculation on every render
-  const filteredOperations = useMemo(() =>
-    selectedCategory === 'all'
-      ? operationsData
-      : operationsData.filter(op => op.category === selectedCategory),
-    [selectedCategory]
-  );
-
-  // Throttled scroll handler for better performance
+  // Throttled scroll handler for better mobile performance
   useEffect(() => {
-    const handleScroll = throttle(() => {
-      setScrolled(window.scrollY > 50);
-    }, 100);
-
+    let ticking = false;
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          setScrolled(window.scrollY > 50);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Smooth scroll - set once
+  // Smooth scroll
   useEffect(() => {
     document.documentElement.style.scrollBehavior = 'smooth';
   }, []);
@@ -328,9 +276,13 @@ function App() {
     }
   };
 
-  const filteredOperations = selectedCategory === 'all'
-    ? operations
-    : operations.filter(op => op.category === selectedCategory);
+  // Memoize filtered operations to prevent recalculation on every render
+  const filteredOperations = useMemo(() =>
+    selectedCategory === 'all'
+      ? operations
+      : operations.filter(op => op.category === selectedCategory),
+    [selectedCategory]
+  );
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
