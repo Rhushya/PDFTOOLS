@@ -30,7 +30,8 @@ import {
   Github,
   Twitter,
   Linkedin,
-  Mail
+  Mail,
+  Globe
 } from 'lucide-react';
 import './App.css';
 
@@ -994,6 +995,9 @@ function App() {
             </a>
             <a href="mailto:rhushya2004@gmail.com" title="Email">
               <Mail size={20} />
+            </a>
+            <a href="https://rhushya.netlify.app/" target="_blank" rel="noopener noreferrer" title="Portfolio">
+              <Globe size={20} />
             </a>
           </div>
         </div>
