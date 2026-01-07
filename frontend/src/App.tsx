@@ -997,19 +997,9 @@ function App() {
             </a>
           </div>
         </div>
-        <div className="footer-author">
-          <p className="author-name">Built by <strong>Rhushya KC</strong></p>
-          <p className="author-location">📍 Bengaluru, India</p>
-          <div className="author-links">
-            <a href="https://rhushya.netlify.app/" target="_blank" rel="noopener noreferrer">Portfolio</a>
-            <span className="divider">•</span>
-            <a href="mailto:rhushya2004@gmail.com">rhushya2004@gmail.com</a>
-            <span className="divider">•</span>
-            <a href="tel:+917019292150">+91 7019292150</a>
-          </div>
-        </div>
+
         <div className="footer-bottom">
-          <p>© 2026 PDFMaster by Rhushya KC. All rights reserved.</p>
+          <p>© 2026 PDFMaster. All rights reserved.</p>
         </div>
       </footer>
     </div>
